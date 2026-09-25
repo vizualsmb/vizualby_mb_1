@@ -3,12 +3,16 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import styles from "./portal.module.css";
 
+const description = "A considered booking experience for films, brands, and the stories in between. Massachusetts + Rhode Island.";
+
 export const metadata: Metadata = {
-  title: { absolute: "Book a production — VIZUAL BY MB", template: "%s — VIZUAL BY MB" },
-  description: "A considered booking experience for films, brands, and the stories in between. Massachusetts + Rhode Island.",
-  alternates: { canonical: "https://book.vizualbymb.com" },
+  title: { absolute: "Booking with MB", template: "%s — Booking with MB" },
+  description,
+  alternates: { canonical: "https://booking.vizualbymb.com" },
   robots: { index: false, follow: false },
   referrer: "no-referrer",
+  openGraph: { type: "website", url: "https://booking.vizualbymb.com", title: "Booking with MB", description, siteName: "VIZUAL BY MB" },
+  twitter: { card: "summary_large_image", title: "Booking with MB", description },
 };
 
 export default function BookingLayout({ children }: { children: React.ReactNode }) {

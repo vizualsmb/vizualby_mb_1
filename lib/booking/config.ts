@@ -13,7 +13,7 @@ export const bookingPolicies = () => ({
   version: process.env.BOOKING_POLICY_VERSION || "draft-1",
   cancellation: process.env.BOOKING_CANCELLATION_POLICY || "Cancellation and deposit refund terms will be published before bookings open.",
   rescheduling: process.env.BOOKING_RESCHEDULING_POLICY || "Rescheduling notice and date-change terms will be published before bookings open.",
-  balance: process.env.BOOKING_BALANCE_POLICY || "The remaining balance, including selected add-ons, is invoiced separately. Payment timing will be agreed before booking.",
+  balance: process.env.BOOKING_BALANCE_POLICY || "The remaining balance is invoiced separately. Payment timing will be agreed before booking.",
 });
 export function bookingEnabled() {
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;

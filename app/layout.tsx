@@ -22,13 +22,13 @@ export const metadata: Metadata = {
     url: "/",
     title: "VIZUAL BY MB",
     description: "Cinematic films, campaigns, and social stories shaped from concept through final frame.",
-    images: [{ url: "/opengraph-image.jpg?v=4", width: 1200, height: 630, alt: "VIZUAL BY MB logo — Filmmaker" }],
+    images: [{ url: "/opengraph-image.jpg?v=5", width: 1200, height: 630, alt: "VIZUAL BY MB logo — Filmmaker" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "VIZUAL BY MB",
     description: "Cinematic films, campaigns, and social stories shaped from concept through final frame.",
-    images: ["/opengraph-image.jpg?v=4"],
+    images: ["/opengraph-image.jpg?v=5"],
   },
 };
 
