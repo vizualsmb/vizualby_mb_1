@@ -7,9 +7,13 @@ import { signOut } from "@/lib/admin/session-actions";
 export const dynamic = "force-dynamic";
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
-  const { email } = await requireAdmin();
+  const { email, mode } = await requireAdmin();
   return <div className={s.shell}>
     <AdminNav email={email} signOut={signOut} />
-    <main className={s.main} id="main-content">{children}</main>
+    <main className={s.main} id="main-content">
+      {mode !== "signed-in" && <p className={s.devBanner} role="status"><b>Login bypassed</b> (local development only).{" "}
+        {mode === "dev-bypass-demo" ? "Showing fictional demo data. Changes last until the dev server restarts." : "Showing your real Supabase data."}</p>}
+      {children}
+    </main>
   </div>;
 }

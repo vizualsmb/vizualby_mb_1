@@ -4,6 +4,8 @@ import { Brand } from "@/components/admin/AdminNav";
 import { Notice } from "@/components/admin/ui";
 import { signOut } from "@/lib/admin/session-actions";
 import { LoginForm } from "./LoginForm";
+import { redirect } from "next/navigation";
+import { devBypass } from "@/lib/admin/dev";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -15,6 +17,7 @@ const ERRORS: Record<string, string> = {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
+  if (devBypass()) redirect("/admin");
   return <main className={s.auth} id="main-content">
     <div className={s.authCard}>
       <Brand />

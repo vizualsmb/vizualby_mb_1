@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseEnv } from "@/lib/supabase/env";
+import { devBypass } from "@/lib/admin/dev";
 
 const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/auth/"];
 
@@ -8,6 +9,7 @@ const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/auth/"];
 // This is an optimistic check only: every admin page and action re-verifies the
 // session and the admin allowlist on the server (lib/admin/auth.ts).
 export async function proxy(request: NextRequest) {
+  if (devBypass()) return NextResponse.next(); // local `next dev` only; see lib/admin/dev.ts
   const env = supabaseEnv();
   const isPublic = PUBLIC_ADMIN_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
   if (!env) return isPublic ? NextResponse.next() : NextResponse.redirect(new URL("/admin/login", request.url));

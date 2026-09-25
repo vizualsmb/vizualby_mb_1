@@ -184,6 +184,15 @@ Throughout:
 
 The dashboard was checked at 320, 390, 768 and 1440px with no horizontal overflow.
 
+## Local preview without signing in
+
+For local development only, add `ADMIN_DEV_BYPASS=true` to `.env.local` and run `npm run dev`. Then open `http://localhost:3000/admin`.
+
+- **Without Supabase configured:** the admin runs on fictional demo data held in memory (`lib/admin/demo/`). Forms work, and data resets when the dev server restarts.
+- **With Supabase configured:** it shows your real data through the service role.
+
+A dashed banner on every page shows that login is bypassed. The bypass requires `NODE_ENV === "development"`, so `next build`/`next start` and every Vercel deployment ignore it and always require sign-in (`lib/admin/dev.ts`).
+
 ## 11. Setup (one-time)
 
 1. Create a Supabase project, in the US East region to be close to Vercel.
