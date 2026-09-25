@@ -135,6 +135,7 @@ export function HomePage() {
             src="/video/mb-hero-web.mp4"
             highQualitySrc="/video/mb-hero-hq-hevc.mp4"
             poster="/images/mb-hero-2-poster.webp"
+            fallback="/logo/mb-white.png"
             priority
             active={!intro}
           />
