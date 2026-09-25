@@ -1,0 +1,5 @@
+# Keep deploy uploads small: every deployment stores a full copy of what is uploaded.
+/artifacts/
+/test-results/
+/playwright-report/
+.DS_Store

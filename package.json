@@ -1,0 +1,42 @@
+{
+  "name": "vizual-by-mb",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test:booking": "tsx --test tests/booking.test.ts",
+    "test:admin": "tsx --test tests/admin-finance.test.ts",
+    "test:booking:ui": "playwright test"
+  },
+  "dependencies": {
+    "@calcom/embed-react": "^1.5.3",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.109.0",
+    "@upstash/redis": "^1.39.0",
+    "framer-motion": "^12.23.12",
+    "gsap": "^3.13.0",
+    "lenis": "^1.3.11",
+    "lucide-react": "^0.468.0",
+    "next": "^16.3.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "resend": "^6.0.2",
+    "server-only": "^0.0.1",
+    "stripe": "^22.6.2",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^16.3.6",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.2"
+  }
+}

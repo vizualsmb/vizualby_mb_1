@@ -1,0 +1,13 @@
+.next
+node_modules
+.env*
+!.env.example
+npm-debug.log*
+.DS_Store
+.vercel
+# Booking QA outputs (generated locally; no client data)
+/artifacts/
+/test-results/
+/playwright-report/
+*.tsbuildinfo
+next-env.d.ts
