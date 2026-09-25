@@ -3,7 +3,9 @@ import { bookingAddons, bookingPackages } from "@/data/booking";
 import { bookingStore, type PaidReceipt, type StripeReceipt } from "@/lib/booking/store";
 import type { BookingRecord } from "@/lib/booking/reconcile";
 import { createSupabaseService } from "@/lib/supabase/service";
-import { statusRank, type BookingStatus, type LeadSource } from "./labels";
+import { leadSourceFrom, statusRank, type BookingStatus } from "./labels";
+import { adminNewBooking, adminPaymentReceived, type MessageBooking } from "./messages";
+import { adminInbox, adminSiteUrl, deliverOnce, studioSettings } from "./notify";
 
 // Mirrors a website booking (kept in Redis by the booking flow) into the admin
 // database. Called from both provider webhooks after reconciliation, so it runs on
@@ -16,16 +18,6 @@ type Db = NonNullable<ReturnType<typeof createSupabaseService>>;
 const STATE_TO_STATUS: Record<string, BookingStatus> = {
   awaiting_payment: "deposit_pending", paid_deposit: "deposit_paid", confirmed: "confirmed", cancelled: "canceled",
 };
-
-export function leadSourceFrom(text?: string): { source: LeadSource; detail: string | null } {
-  const t = (text || "").trim();
-  const l = t.toLowerCase();
-  const match = ([
-    ["instagram", /insta|\big\b/], ["tiktok", /tik ?tok/], ["youtube", /youtube|\byt\b/], ["google", /google|search/],
-    ["linkedin", /linked ?in/], ["repeat_client", /repeat|worked (with|together) before|returning/], ["referral", /refer|friend|word of mouth|recommend/],
-  ] as [LeadSource, RegExp][]).find(([, re]) => re.test(l));
-  return { source: match?.[0] ?? (t ? "other" : "website"), detail: t || null };
-}
 
 async function upsertClient(db: Db, record: BookingRecord) {
   const { intake } = record;
@@ -73,11 +65,11 @@ async function upsertBooking(db: Db, record: BookingRecord, clientId: string) {
 }
 
 export async function upsertStripePayment(db: Db, bookingId: string, payment: StripeReceipt, type: "deposit" | "final" | "partial", calPaymentId?: number) {
-  if (payment.amount <= 0) return; // Nothing was captured, so there is nothing to record.
+  if (payment.amount <= 0) return false; // Nothing was captured, so there is nothing to record.
   const status = payment.status !== "succeeded" ? "pending"
     : payment.refunded >= payment.amount ? "refunded" : payment.refunded > 0 ? "partially_refunded" : "succeeded";
   const refunded = Math.min(payment.refunded, payment.amount);
-  const { data: existing, error } = await db.from("payments").select("id").eq("stripe_payment_intent_id", payment.id).maybeSingle();
+  const { data: existing, error } = await db.from("payments").select("id, status").eq("stripe_payment_intent_id", payment.id).maybeSingle();
   if (error) throw error;
   // Later events (refunds) update status only; the original payment date is kept.
   const write = existing
@@ -88,6 +80,35 @@ export async function upsertStripePayment(db: Db, bookingId: string, payment: St
     });
   const { error: writeError } = await write;
   if (writeError) throw writeError;
+  return status === "succeeded" && existing?.status !== "succeeded"; // true the first time it succeeds
+}
+
+async function alertAdmin(db: Db, bookingId: string, kind: "new_booking" | "payment", dedupeKey: string, amount = 0) {
+  const settings = await studioSettings(db);
+  const to = adminInbox();
+  if (!settings.adminEmails || !to) return;
+  const { data: b } = await db.from("booking_ledger").select("client_name, project_title, package_name, shoot_start, location, balance_cents, due_date, payment_link_url, payment_link_cents").eq("id", bookingId).single();
+  if (!b) return;
+  const booking: MessageBooking = { ...b, project: b.project_title || b.package_name || "a project" };
+  const url = `${adminSiteUrl()}/admin/bookings/${bookingId}`;
+  const msg = kind === "new_booking" ? adminNewBooking(booking, url) : adminPaymentReceived(booking, amount, url);
+  await deliverOnce(db, { bookingId, kind: `admin_${kind}`, dedupeKey, to, ...msg });
+}
+
+// A balance paid through an admin-created Stripe payment link (metadata.admin_booking_id).
+export async function syncLinkedStripePayment(bookingId: string, payment: StripeReceipt, type: "final" | "partial") {
+  const db = createSupabaseService();
+  if (!db || !/^[0-9a-f-]{36}$/i.test(bookingId)) return;
+  const { data: booking, error } = await db.from("bookings").select("id").eq("id", bookingId).maybeSingle();
+  if (error) throw error;
+  if (!booking) return; // Unknown booking: never attach money to a guess.
+  // Clear the used link only on the first success, so a late retry cannot clear a newer link.
+  if (await upsertStripePayment(db, bookingId, payment, type)) {
+    const { error: clearError } = await db.from("bookings").update({ payment_link_id: null, payment_link_url: null, payment_link_cents: null }).eq("id", bookingId);
+    if (clearError) throw clearError;
+  }
+  // Alerts are deduplicated by the notifications log, so retries are safe and never lose one.
+  if (payment.status === "succeeded") await alertAdmin(db, bookingId, "payment", `admin_payment:${payment.id}`, payment.amount);
 }
 
 export async function syncBookingToAdmin(uid: string) {
@@ -102,7 +123,11 @@ export async function syncBookingToAdmin(uid: string) {
 
   const paid = await store.hget<PaidReceipt>(`booking:cal:${uid}`, "paid");
   const payment = paid ? await store.get<StripeReceipt>(`booking:stripe:${paid.stripePaymentIntentId}`) : null;
-  if (paid && payment) await upsertStripePayment(db, booking.id, payment, record.paymentOption === "full" ? "final" : "deposit", paid.paymentId);
+  await alertAdmin(db, booking.id, "new_booking", `admin_new_booking:${booking.id}`);
+  if (paid && payment) {
+    await upsertStripePayment(db, booking.id, payment, record.paymentOption === "full" ? "final" : "deposit", paid.paymentId);
+    if (payment.status === "succeeded") await alertAdmin(db, booking.id, "payment", `admin_payment:${payment.id}`, payment.amount);
+  }
 
   // Automation only moves early statuses forward (or cancels); it never overrides
   // a status you set by hand later in the pipeline.

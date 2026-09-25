@@ -1,8 +1,8 @@
 import Stripe from "stripe";
 import { boundedBody } from "@/lib/booking/security";
-import { bookingStore, RECEIPT_TTL } from "@/lib/booking/store";
+import { bookingStore, RECEIPT_TTL, type StripeReceipt } from "@/lib/booking/store";
 import { reconcileBooking } from "@/lib/booking/reconcile";
-import { syncBookingToAdmin } from "@/lib/admin/sync";
+import { syncBookingToAdmin, syncLinkedStripePayment } from "@/lib/admin/sync";
 
 export async function POST(request: Request) {
   const { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } = process.env;
@@ -30,6 +30,12 @@ export async function POST(request: Request) {
         if old.status == 'succeeded' then incoming.status = 'succeeded' end
       end
       redis.call('SET', KEYS[1], cjson.encode(incoming), 'EX', ARGV[2]); return 1`, [`booking:stripe:${id}`], [JSON.stringify({ id, amount: payment.amount_received, currency: payment.currency, refunded: charge?.amount_refunded || 0, status: payment.status, updatedAt: event.created }), RECEIPT_TTL]);
+    // Balance paid through an admin payment link: record it against that booking.
+    const adminBookingId = payment.metadata?.admin_booking_id;
+    if (adminBookingId) {
+      const merged = await store.get<StripeReceipt>(`booking:stripe:${id}`);
+      if (merged) await syncLinkedStripePayment(adminBookingId, merged, payment.metadata?.admin_payment_type === "partial" ? "partial" : "final");
+    }
     const bookingUids = await store.smembers<string[]>(`booking:payment-bookings:${id}`);
     for (const uid of bookingUids) { await reconcileBooking(uid); await syncBookingToAdmin(uid); }
     return Response.json({ received: true });

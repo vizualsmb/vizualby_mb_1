@@ -14,13 +14,14 @@ Private business dashboard at `/admin`, served at the root of **admin.vizualbymb
 - [10. Mobile](#10-mobile)
 - [11. Setup (one-time)](#11-setup-one-time)
 - [12. Phases and what is left](#12-phases-and-what-is-left)
+- [12a. Automation (Phase 5)](#12a-automation-phase-5)
 - [13. Files](#13-files)
 
 ---
 
 ## 1. Audit of the existing project
 
-**Stack.** Next.js 16.3 (App Router, Turbopack), React 19.3, TypeScript (strict), CSS Modules plus `globals.css` (no Tailwind), zod 4, Stripe SDK 22, Upstash Redis, Resend and `@calcom/embed-react`. It is deployed to Vercel with the CLI. There is **no git repository**.
+**Stack.** Next.js 16.3 (App Router, Turbopack), React 19.3, TypeScript (strict), CSS Modules plus `globals.css` (no Tailwind), zod 4, Stripe SDK 22, Upstash Redis, Resend and `@calcom/embed-react`. It is deployed to Vercel with the CLI. There was no git repository (now initialised).
 
 **Structure.** `app/` holds the portfolio pages, `app/booking/*` the booking portal, and `app/api/booking/*` plus `app/api/contact`. `components/` holds the portfolio and `components/booking/`. `data/` holds site content and the booking catalog (`data/booking.ts`, `data/music-booking.ts`). `lib/booking/` holds config, the Redis store, the Cal client, signature checks and reconciliation.
 
@@ -41,8 +42,9 @@ It is carefully built: raw-body signatures, monotonic refund handling, replay-sa
 - No secrets are `NEXT_PUBLIC_`. This was verified: the client bundle contains no admin secret names.
 
 **Potential issues found.**
-- `intakeSchema.referral` exists, but the booking form never asks it. Lead source for website bookings will therefore read "Website" until a "How did you hear about us?" field is added. This is a one-line UI change, deliberately not made here.
-- There is no git history. Initialise git before further large changes so every change is reversible.
+- `intakeSchema.referral` existed but the booking form never asked it. **Fixed:** the intake step now has an optional "How did you find us?" question, which feeds lead-source analytics.
+- There was no git history. **Fixed:** git is initialised with a baseline commit.
+- The browser tests in `tests/browser/booking.spec.ts` are out of date: they look for a "LET'S MAKE" heading and category names ("Brand films", "Event coverage") that the current booking UI no longer has, so they fail before reaching the form. This predates the admin work.
 
 **Recommendation.**
 - **Stay:** the whole booking and payment flow, the Redis reconciliation, and `data/booking.ts` as the catalog for now. Its prices must match the Cal event deposits, and the session route checks this on the server.
@@ -90,7 +92,7 @@ Migration: `supabase/migrations/20260924000000_admin_foundation.sql`. It was val
 - `packages` / `services`: the catalog lives in `data/booking.ts` until Phase 4. Bookings store `package_id` plus snapshots.
 - `inquiries`: an inquiry is a booking with status `new_inquiry`.
 - `lead_sources`: an enum.
-- `calendar_events`, `notifications`: Phase 5.
+- `calendar_events`: not needed yet; the calendar reads bookings directly. (`notifications` was added in Phase 5.)
 
 ## 4. Pages
 
@@ -199,9 +201,10 @@ The dashboard was checked at 320, 390, 768 and 1440px with no horizontal overflo
    - Add redirect URL `https://admin.vizualbymb.com/admin/auth/confirm`, plus `http://localhost:3000/admin/auth/confirm` for local development.
 6. **Authentication → Emails → Magic Link** template: include the code as well as the link, for example `Your code: {{ .Token }}` and `<a href="{{ .ConfirmationURL }}">Sign in</a>`.
 7. For production email delivery, set up custom SMTP (for example, Resend, which you already use). Supabase's built-in sender is heavily rate-limited.
-8. **Project Settings → API**: copy the URL, the publishable key and the secret key into Vercel environment variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`) and into `.env.local`.
-9. In Vercel → Domains, add `admin.vizualbymb.com` and create the DNS record Vercel shows you.
-10. Deploy. Existing webhooks start filling the admin database with new bookings from then on. Bookings made before setup are not backfilled; add any active ones with **New booking**.
+8. Run `supabase/migrations/20260925000000_automation.sql` too (step 2 covers the first file).
+9. **Project Settings → API**: copy the URL, the publishable key and the secret key into Vercel environment variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`) and into `.env.local`.
+10. In Vercel → Domains, add `admin.vizualbymb.com` and create the DNS record Vercel shows you.
+11. Deploy. Existing webhooks start filling the admin database with new bookings from then on. Bookings made before setup are not backfilled; add any active ones with **New booking**.
 
 ## 12. Phases and what is left
 
@@ -209,15 +212,58 @@ The dashboard was checked at 320, 390, 768 and 1440px with no horizontal overflo
 |---|---|
 | 1 Foundation: auth, layout, schema, booking sync, clients, Stripe architecture | **Built** |
 | 2 Core dashboard: KPIs, revenue, bookings, upcoming shoots, payments due, clients | **Built** |
-| 3 Finance: expenses, profit, reporting, date filters | **Built** (receipt upload not yet: add a private Supabase Storage bucket and store the path in `expenses.receipt_path`) |
-| 4 Analytics: packages, lead sources, client value, trends | **Built**. Also planned: move the catalog into the database with Cal price validation; add a "How did you hear about us?" field to the booking form |
-| 5 Automation: reminders, email, calendar sync, status rules | **Planned**. Vercel Cron → `/api/admin/cron` (secret-protected) for shoot-tomorrow and balance-due reminders via Resend, a `notifications` table for sent-message idempotency, Stripe Payment Links for balances, and auto-archive of delivered projects after N days |
+| 3 Finance: expenses, profit, reporting, date filters, receipts | **Built** |
+| 4 Analytics: packages, lead sources, client value, trends | **Built**, including the booking-form lead-source question |
+| 5 Automation: reminders, email, status rules, balance payments | **Built**, see below. Pushing manual bookings to Google Calendar is not built yet |
+| Kanban board | **Built** at `/admin/bookings/board` |
+| Editable packages that feed the booking site | **Not built.** Each package price must match its Cal.com event deposit, which the session route checks on every checkout. Moving the catalog into the database needs an admin screen that also updates or validates the Cal event, so a price edit can never break live checkout. |
 
-A Kanban board can be added on top of `/admin/bookings`; the status enum already defines the columns.
+## 12a. Automation (Phase 5)
+
+Migration: `supabase/migrations/20260925000000_automation.sql`. Run it after the foundation migration.
+
+**Daily job.** Vercel Cron calls `GET /api/admin/cron` at 13:00 UTC (9 AM New York in summer, 8 AM in winter). It requires `Authorization: Bearer $CRON_SECRET`, compared in constant time. Settings also has a **Run daily automation now** button. Every step is idempotent.
+
+| Rule | What happens | Setting |
+|---|---|---|
+| Shoot over | Confirmed / Pre-production / Shoot scheduled → **Shoot completed** once the shoot ends | Move projects forward (on) |
+| Next day | Shoot completed → **Editing** | same |
+| Delivered long enough | Delivered → **Archived** after N days (default 30; blank = never) | same |
+| Final payment | Final payment due → **Paid** as soon as the balance reaches $0 (database trigger, instant) | always |
+| Deposit paid | Deposit pending → Deposit paid → Confirmed (from the booking webhooks) | always |
+
+**Emails** (Resend, from `CONTACT_FROM_EMAIL`, plain text):
+
+| Message | To | When | Default |
+|---|---|---|---|
+| New booking alert | you | a website booking is created | on |
+| Payment alert | you | a Stripe deposit or balance payment succeeds | on |
+| Shoot reminder | client | the day before the shoot (a rescheduled shoot gets a new one) | **off** |
+| Balance reminder | client | N days before the due date (default 3), includes the payment link when it matches the balance | **off** |
+| Overdue notice | client | once, after the due date passes | **off** |
+
+Client emails stay off until you switch them on in Settings. Cal.com already sends booking confirmations and Stripe sends payment receipts, so those are not duplicated. Every message is logged in `notifications` with a unique key, so none is sent twice; a failed send is retried on the next run. The last 12 are listed in Settings. To add SMS, add a branch on `channel` in `lib/admin/notify.ts`.
+
+**Balance payment links.** On a booking with a balance, **Create payment link** makes a single-use Stripe Payment Link for the balance (or a partial amount). Copy it into a text or email. When the client pays:
+- the existing signed Stripe webhook sees `metadata.admin_booking_id`, records the payment on that booking, clears the link, and emails you
+- the client lands on `/booking/paid`
+- creating a new link switches the old one off
+
+Links are created on the same Stripe account the webhook verifies (`STRIPE_CONNECTED_ACCOUNT_ID` when set). A test-mode key shows a "no real money moves" note.
+
+**Receipts.** Attach a photo or PDF when adding an expense. Photos are resized in the browser to fit the 4.5 MB upload limit; PDFs up to 4 MB. Files go to the private `receipts` bucket (admin-only policies) and open through a one-minute signed link.
+
+**Setup additions:**
+- `CRON_SECRET`: a long random value, set in Vercel
+- `CONTACT_FROM_EMAIL`: needs a verified Resend domain
+- `ADMIN_NOTIFY_EMAIL`: optional
+- `BOOKING_SITE_URL`: optional
 
 ## 13. Files
 
 **New**
+- `vercel.json` (cron), `supabase/migrations/…_automation.sql`
+- `lib/admin/{automation,notify,messages,stripe}.ts`, `app/api/admin/cron/route.ts`, `app/admin/receipts/[id]/route.ts`, `app/booking/paid/page.tsx`, `tests/admin-automation.test.ts`
 - `proxy.ts`
 - `supabase/migrations/…_admin_foundation.sql`
 - `lib/supabase/{env,server,service}.ts`
@@ -227,7 +273,8 @@ A Kanban board can be added on top of `/admin/bookings`; the status enum already
 - `tests/admin-finance.test.ts`
 
 **Changed**
-- `app/api/booking/webhooks/{cal,stripe}/route.ts`: one `syncBookingToAdmin` call each
+- `app/api/booking/webhooks/{cal,stripe}/route.ts`: admin sync calls, plus balance-link payments in the Stripe webhook
+- `components/booking/BookingPortal.tsx`: optional "How did you find us?" question
 - `next.config.ts`: admin host rewrite and headers
 - `.env.example`
 - `package.json`: added `@supabase/supabase-js`, `@supabase/ssr` and `server-only`

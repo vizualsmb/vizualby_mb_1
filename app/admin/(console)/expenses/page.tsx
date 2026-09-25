@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import s from "@/components/admin/admin.module.css";
 import { Card, Empty, Kpi, PageHeader } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/ActionForm";
+import { ReceiptInput } from "@/components/admin/ReceiptInput";
 import { Breakdown } from "@/components/admin/Breakdown";
 import { RangeFilter } from "@/components/admin/RangeFilter";
 import { requireAdmin } from "@/lib/admin/auth";
@@ -46,7 +47,8 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
               <label className={s.field}>Vendor<input className={s.input} name="vendor" maxLength={120} /></label>
               <label className={s.field}>Paid with<select className={s.input} name="payment_method" defaultValue=""><option value="">—</option>{Object.entries(PAYMENT_METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
               <label className={s.field}>Project (optional)<select className={s.input} name="booking_id" defaultValue=""><option value="">General business</option>{bookings.map((b) => <option key={b.id} value={b.id}>{b.client_name} — {b.project_title ?? b.package_name ?? "Project"}{b.shoot_start ? ` (${formatShortDate(b.shoot_start)})` : ""}</option>)}</select></label>
-              <label className={`${s.field} ${s.fieldWide}`}>Notes<input className={s.input} name="notes" maxLength={1000} /></label>
+              <label className={s.field}>Notes<input className={s.input} name="notes" maxLength={1000} /></label>
+              <ReceiptInput />
             </div>
           </ActionForm>
         </Card>
@@ -55,7 +57,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
             <ul className={s.list}>{expenses.map((e) => <li key={e.id} className={s.listItem} style={{ padding: "11px 0", display: "grid", gap: 3 }}>
               <span className={s.mobileCardRow}><span className={s.primaryText} style={{ whiteSpace: "normal" }}>{e.name}</span><span className={s.amount}>{usd(e.amount_cents)}</span></span>
               <span className={s.mobileCardRow}>
-                <span className={s.metaText}>{formatDay(e.spent_on)} · {cat(e.category)}{e.vendor ? ` · ${e.vendor}` : ""}{e.booking_id ? " · project cost" : ""}</span>
+                <span className={s.metaText}>{formatDay(e.spent_on)} · {cat(e.category)}{e.vendor ? ` · ${e.vendor}` : ""}{e.booking_id ? " · project cost" : ""}{e.receipt_path && <> · <a className={s.rowLink} href={`/admin/receipts/${e.id}`} target="_blank" rel="noreferrer">Receipt</a></>}</span>
                 <ActionForm action={deleteExpense} submit="Delete" variant="danger" className={s.formFoot} confirm={`Delete “${e.name}”?`}><input type="hidden" name="id" value={e.id} /></ActionForm>
               </span>
             </li>)}</ul>}

@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { bookingPackages } from "@/data/booking";
 import { requireAdmin } from "./auth";
-import { parseCents } from "./money";
+import { parseCents, usd } from "./money";
+import { adminStripe, bookingSiteUrl } from "./stripe";
+import { runDailyAutomation } from "./automation";
+import { createSupabaseService } from "@/lib/supabase/service";
 import { nyInstant } from "./time";
 import { BOOKING_STATUSES, CLIENT_TYPES, EXPENSE_CATEGORIES, LEAD_SOURCES, PAYMENT_METHODS, PAYMENT_TYPES, keysOf } from "./labels";
 
@@ -181,28 +184,43 @@ export async function updateClient(_: ActionState, fd: FormData): Promise<Action
 }
 
 // ── Expenses ─────────────────────────────────────────────────────────────────
+const RECEIPT_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+
 export async function addExpense(_: ActionState, fd: FormData): Promise<ActionState> {
   const { supabase } = await requireAdmin();
   const input = z.object({
     name: z.string().trim().min(1).max(160), amount: z.string().max(20), spent_on: day, category: enumOf(EXPENSE_CATEGORIES),
     vendor: text(120), booking_id: optional(uuid), payment_method: optional(enumOf(PAYMENT_METHODS)), notes: text(1000),
-  }).safeParse(form(fd));
+  }).safeParse(Object.fromEntries([...fd.entries()].filter(([k]) => k !== "receipt")));
   if (!input.success) return fail("Name, amount, date and category are required.");
   const amount = parseCents(input.data.amount);
   if (!amount) return fail("Enter an amount, e.g. 45.99.");
+  const receipt = fd.get("receipt");
+  const file = receipt instanceof File && receipt.size > 0 ? receipt : null;
+  if (file && (!RECEIPT_TYPES[file.type] || file.size > 4 * 1024 * 1024)) return fail("Receipts must be a JPG, PNG, WebP or PDF under 4 MB.");
+
   const { name, spent_on, category, vendor, booking_id, payment_method, notes } = input.data;
-  const { error } = await supabase.from("expenses").insert({ name, spent_on, category, vendor, notes, amount_cents: amount, booking_id: booking_id ?? null, payment_method: payment_method ?? null });
+  const { data: expense, error } = await supabase.from("expenses")
+    .insert({ name, spent_on, category, vendor, notes, amount_cents: amount, booking_id: booking_id ?? null, payment_method: payment_method ?? null })
+    .select("id").single();
   if (error) return fail("Could not save the expense.");
   revalidatePath("/admin", "layout");
-  return { ok: true, message: "Expense added" };
+  if (!file) return { ok: true, message: "Expense added" };
+
+  const path = `${spent_on.slice(0, 4)}/${expense.id}.${RECEIPT_TYPES[file.type]}`;
+  const { error: uploadError } = await supabase.storage.from("receipts").upload(path, file, { contentType: file.type, upsert: false });
+  if (uploadError) return { ok: true, message: "Expense added, but the receipt did not upload. Try again from a smaller file." };
+  await supabase.from("expenses").update({ receipt_path: path }).eq("id", expense.id);
+  return { ok: true, message: "Expense and receipt saved" };
 }
 
 export async function deleteExpense(_: ActionState, fd: FormData): Promise<ActionState> {
   const { supabase } = await requireAdmin();
   const id = uuid.safeParse(fd.get("id"));
   if (!id.success) return fail("Expense not found.");
-  const { data: removed, error } = await supabase.from("expenses").delete().eq("id", id.data).select("name, amount_cents, spent_on").maybeSingle();
+  const { data: removed, error } = await supabase.from("expenses").delete().eq("id", id.data).select("name, amount_cents, spent_on, receipt_path").maybeSingle();
   if (error) return fail("Could not delete the expense.");
+  if (removed?.receipt_path) await supabase.storage.from("receipts").remove([removed.receipt_path]);
   await audit("delete", "expense", id.data, removed);
   revalidatePath("/admin", "layout");
   return { ok: true, message: "Expense deleted" };
@@ -215,11 +233,70 @@ export async function updateSettings(_: ActionState, fd: FormData): Promise<Acti
     business_name: z.string().trim().min(1).max(120), email: optional(z.email().max(160)), phone: text(30), address: text(300),
     default_deposit_percent: z.coerce.number().min(0).max(100), tax_percent: z.coerce.number().min(0).max(100),
     invoice_terms: text(3000), cancellation_terms: text(3000), payment_terms: text(3000),
+    reminder_days_before_due: z.coerce.number().int().min(0).max(30),
+    archive_after_days: optional(z.coerce.number().int().min(1).max(365)),
   }).safeParse(form(fd));
   if (!input.success) return fail("Check the settings values.");
-  const { error } = await supabase.from("business_settings").update({ ...input.data, email: input.data.email ?? null }).eq("id", true);
+  // Unchecked checkboxes are absent from form data, so read them explicitly.
+  const toggles = Object.fromEntries(["client_emails_enabled", "admin_emails_enabled", "auto_status_enabled"].map((k) => [k, fd.get(k) === "on"]));
+  const { error } = await supabase.from("business_settings").update({ ...input.data, ...toggles, email: input.data.email ?? null, archive_after_days: input.data.archive_after_days ?? null }).eq("id", true);
   if (error) return fail("Could not save settings.");
-  await audit("update", "business_settings", null, input.data);
+  await audit("update", "business_settings", null, { ...input.data, ...toggles });
   revalidatePath("/admin/settings");
   return { ok: true, message: "Settings saved" };
+}
+
+// ── Balance payment links ────────────────────────────────────────────────────
+// A single-use Stripe Payment Link for the balance. The payment is recorded by the
+// Stripe webhook (metadata.admin_booking_id); nothing here marks anything paid.
+export async function createBalancePaymentLink(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireAdmin();
+  const input = z.object({ id: uuid, amount: z.string().trim().max(20) }).safeParse(form(fd));
+  if (!input.success) return fail("Booking not found.");
+  const stripeConfig = adminStripe();
+  if (!stripeConfig) return fail("Stripe is not configured (STRIPE_SECRET_KEY).");
+  const { data: b } = await supabase.from("booking_ledger").select("id, status, balance_cents, client_email, project_title, package_name, payment_link_id").eq("id", input.data.id).single();
+  if (!b) return fail("Booking not found.");
+  if (b.status === "canceled") return fail("This booking is canceled.");
+  const amount = input.data.amount ? parseCents(input.data.amount) : b.balance_cents;
+  if (!amount || amount < 50) return fail("Enter an amount of at least $0.50.");
+  if (amount > b.balance_cents) return fail(`That is more than the ${usd(b.balance_cents)} balance.`);
+  const { stripe, options } = stripeConfig;
+  const project = b.project_title || b.package_name || "Video production";
+  try {
+    if (b.payment_link_id) await stripe.paymentLinks.update(b.payment_link_id, { active: false }, options).catch(() => null);
+    const metadata = { admin_booking_id: b.id, admin_payment_type: amount === b.balance_cents ? "final" : "partial" };
+    const link = await stripe.paymentLinks.create({
+      line_items: [{ price_data: { currency: "usd", unit_amount: amount, product_data: { name: `${project} — ${amount === b.balance_cents ? "remaining balance" : "payment"}` } }, quantity: 1 }],
+      payment_intent_data: { metadata, description: `${project} (${b.id.slice(0, 8)})` },
+      metadata,
+      restrictions: { completed_sessions: { limit: 1 } },
+      inactive_message: "This payment link has already been used or replaced. Please contact the studio for a new one.",
+      after_completion: { type: "redirect", redirect: { url: `${bookingSiteUrl()}/booking/paid` } },
+    }, options);
+    const { error } = await supabase.from("bookings").update({ payment_link_id: link.id, payment_link_url: link.url, payment_link_cents: amount }).eq("id", b.id);
+    if (error) return fail("The link was created in Stripe but could not be saved. Try again.");
+    await supabase.from("booking_events").insert({ booking_id: b.id, kind: "note", actor: "admin", detail: `Payment link created for ${usd(amount)}` });
+  } catch (error) {
+    return fail(error instanceof Error ? `Stripe: ${error.message}` : "Stripe did not respond. Try again.");
+  }
+  revalidatePath(`/admin/bookings/${b.id}`);
+  return { ok: true, message: "Payment link ready" };
+}
+
+// ── Automation ───────────────────────────────────────────────────────────────
+export async function runAutomationNow(): Promise<ActionState> {
+  await requireAdmin();
+  const db = createSupabaseService();
+  if (!db) return fail("The admin database is not configured.");
+  try {
+    const result = await runDailyAutomation(db);
+    await audit("run", "automation", null, result);
+    revalidatePath("/admin", "layout");
+    const status = typeof result.status === "string" ? "status rules off" : `${result.status.shootCompleted} shoots completed, ${result.status.editing} to editing, ${result.status.archived} archived`;
+    const mail = typeof result.reminders === "string" ? "client emails off" : `${result.reminders.shoot + result.reminders.dueSoon + result.reminders.overdue} reminders sent${result.reminders.failed ? `, ${result.reminders.failed} failed` : ""}`;
+    return { ok: true, message: `Done: ${status}; ${mail}.` };
+  } catch {
+    return fail("Automation failed. Try again, or check the server logs.");
+  }
 }

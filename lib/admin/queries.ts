@@ -13,9 +13,10 @@ export type LedgerRow = {
   shoot_start: string | null; shoot_end: string | null; total_cents: number; package_price_cents: number; addons_cents: number; adjustment_cents: number;
   deposit_required_cents: number; paid_cents: number; refunded_cents: number; balance_cents: number; due_date: string | null; balance_due_date: string | null;
   lead_source: string | null; lead_source_detail: string | null; notes: string | null; created_at: string; updated_at: string;
+  payment_link_url?: string | null; payment_link_cents?: number | null;
 };
 export type Payment = PaymentRow & { id: string; booking_id: string; method: string; stripe_payment_intent_id: string | null; notes: string | null; created_at: string };
-export type Expense = ExpenseRow & { id: string; name: string; category: string; vendor: string | null; booking_id: string | null; payment_method: string | null; notes: string | null };
+export type Expense = ExpenseRow & { id: string; name: string; category: string; vendor: string | null; booking_id: string | null; payment_method: string | null; notes: string | null; receipt_path: string | null };
 export type ClientSummary = {
   id: string; name: string; email: string | null; phone: string | null; company: string | null; social: string | null; client_type: string; notes: string | null; created_at: string;
   booking_count: number; first_booking_at: string | null; last_booking_at: string | null; lifetime_revenue_cents: number; booked_value_cents: number; outstanding_cents: number; next_shoot_at: string | null;

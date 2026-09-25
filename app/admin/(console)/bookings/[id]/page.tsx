@@ -5,10 +5,12 @@ import { ArrowLeft } from "lucide-react";
 import s from "@/components/admin/admin.module.css";
 import { Card, Empty, Notice, PageHeader, PaymentBadge, PaymentStatusBadge, StatusBadge } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/ActionForm";
+import { CopyField } from "@/components/admin/CopyField";
+import { adminStripe } from "@/lib/admin/stripe";
 import { projectName } from "@/components/admin/bookings";
 import { requireAdmin } from "@/lib/admin/auth";
 import { bookingDetail } from "@/lib/admin/queries";
-import { addBookingNote, recordPayment, refundManualPayment, updateBookingDetails, updateBookingStatus } from "@/lib/admin/actions";
+import { addBookingNote, createBalancePaymentLink, recordPayment, refundManualPayment, updateBookingDetails, updateBookingStatus } from "@/lib/admin/actions";
 import { BOOKING_STATUSES, EXPENSE_CATEGORIES, LEAD_SOURCES, PAYMENT_METHODS, PAYMENT_TYPES, statusLabel } from "@/lib/admin/labels";
 import { usd } from "@/lib/admin/money";
 import { formatDate, formatDay, formatFullDate, formatTime, nyDay, nyTimeInput } from "@/lib/admin/time";
@@ -28,6 +30,8 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   const hours = b.shoot_start && b.shoot_end ? (Date.parse(b.shoot_end) - Date.parse(b.shoot_start)) / 3600000 : null;
   const paidPct = b.total_cents ? Math.min(100, Math.round((b.paid_cents / b.total_cents) * 100)) : 0;
   const costs = expenses.reduce((sum, e) => sum + e.amount_cents, 0);
+  const stripeConfig = adminStripe();
+  const stripeMode = stripeConfig ? (stripeConfig.testMode ? "test" : "live") : null;
 
   return <>
     <Link href="/admin/bookings" className={s.cardLink}><ArrowLeft size={14} aria-hidden style={{ marginRight: 6 }} />Bookings</Link>
@@ -126,6 +130,21 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             </select>
           </ActionForm>
         </Card>
+
+        {b.balance_cents > 0 && b.status !== "canceled" && <Card title="Collect the balance">
+          {b.payment_link_url ? <div className={s.form}>
+            <p className={s.secondaryText} style={{ whiteSpace: "normal" }}>Single-use Stripe link for <b>{usd(b.payment_link_cents ?? 0)}</b>. When the client pays, it is recorded here automatically.</p>
+            <CopyField value={b.payment_link_url} label="Payment link" />
+            {b.payment_link_cents !== b.balance_cents && <p className={s.hint}>The balance has changed since this link was made. Create a new one.</p>}
+          </div> : <p className={s.secondaryText} style={{ whiteSpace: "normal", marginBottom: 12 }}>Create a secure Stripe link to text or email to the client.</p>}
+          {stripeMode ? <details className={s.disclosure} style={{ marginTop: 12 }} open={!b.payment_link_url}>
+            <summary className={`${s.button} ${s.buttonGhost}`}>{b.payment_link_url ? "Replace link" : "Create payment link"}</summary>
+            <ActionForm action={createBalancePaymentLink} submit="Create link">
+              <input type="hidden" name="id" value={b.id} />
+              <label className={s.field}>Amount ($)<input className={s.input} name="amount" inputMode="decimal" defaultValue={(b.balance_cents / 100).toString()} /><span className={s.hint}>{stripeMode === "test" ? "Stripe test mode: no real money moves." : "Any previous link for this booking is switched off."}</span></label>
+            </ActionForm>
+          </details> : <p className={s.hint}>Connect Stripe (STRIPE_SECRET_KEY) to create payment links.</p>}
+        </Card>}
 
         <Card title="Payments">
           {payments.length ? <ul className={s.list}>{payments.map((p) => <li key={p.id} className={s.listItem} style={{ padding: "11px 0", display: "grid", gap: 4 }}>

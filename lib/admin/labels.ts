@@ -47,3 +47,14 @@ export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
 export const statusLabel = (s: string) => BOOKING_STATUSES.find(([id]) => id === s)?.[1] ?? s;
 export const statusRank = (s: string) => BOOKING_STATUSES.findIndex(([id]) => id === s);
 export const keysOf = <T extends object>(o: T) => Object.keys(o) as (keyof T & string)[];
+
+// Maps the booking form's free-text "How did you find us?" answer to a lead source.
+export function leadSourceFrom(text?: string): { source: LeadSource; detail: string | null } {
+  const t = (text || "").trim();
+  const l = t.toLowerCase();
+  const match = ([
+    ["instagram", /insta|\big\b/], ["tiktok", /tik ?tok/], ["youtube", /youtube|\byt\b/], ["google", /google|search/],
+    ["linkedin", /linked ?in/], ["repeat_client", /repeat|worked (with|together) before|returning/], ["referral", /refer|friend|word of mouth|recommend/],
+  ] as [LeadSource, RegExp][]).find(([, re]) => re.test(l));
+  return { source: match?.[0] ?? (t ? "other" : "website"), detail: t || null };
+}

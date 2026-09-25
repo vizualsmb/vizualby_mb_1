@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
+  // Receipt uploads: images are resized in the browser first; PDFs up to 4 MB fit.
+  experimental: { serverActions: { bodySizeLimit: "4.5mb" } },
   images: {
     formats: ["image/avif", "image/webp"],
   },

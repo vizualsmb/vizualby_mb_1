@@ -200,3 +200,19 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .auth { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
 .authCard { width: min(420px, 100%); display: grid; gap: 22px; }
 .authCard .brand { padding: 0; }
+
+/* ── Board ──────────────────────────────────────────────────────────────── */
+.board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.lane { background: #121311; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: grid; gap: 10px; min-width: 0; }
+.laneHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 2px 4px; }
+.laneHead h2 { font-size: 12.5px; font-weight: 600; }
+.boardCard { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; gap: 6px; min-width: 0; }
+.boardCard:hover { border-color: var(--border-strong); }
+.statusSelect { display: grid; gap: 4px; margin-top: 4px; }
+.statusSelect .input { min-height: 36px; padding: 6px 30px 6px 10px; font-size: 13px; }
+@media (max-width: 1200px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .board { grid-template-columns: minmax(0, 1fr); } .statusSelect .input { min-height: 44px; font-size: 16px; } }
+.check { display: flex; gap: 12px; align-items: flex-start; color: var(--secondary); line-height: 1.5; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0; accent-color: var(--gold); }
+.check b { color: var(--text); font-weight: 600; }
+.boardCard > .badge { justify-self: start; }

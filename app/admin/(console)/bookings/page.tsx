@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Columns3, Plus } from "lucide-react";
 import s from "@/components/admin/admin.module.css";
 import { Chips, PageHeader, Pagination, SearchForm, hrefWith, pageNumber } from "@/components/admin/ui";
 import { BookingTable } from "@/components/admin/bookings";
@@ -19,6 +19,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
 
   return <>
     <PageHeader eyebrow="Pipeline" title="Bookings" subtitle={params.status ? `Showing “${statusLabel(params.status)}” only.` : undefined}>
+      <Link href="/admin/bookings/board" className={`${s.button} ${s.buttonGhost}`}><Columns3 size={16} aria-hidden />Board</Link>
       <Link href="/admin/bookings/new" className={s.button}><Plus size={16} aria-hidden />New booking</Link>
     </PageHeader>
     <div className={s.toolbar}>
