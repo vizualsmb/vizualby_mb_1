@@ -260,8 +260,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .productionSectionHead h2 { font-size: 17px; letter-spacing: -.02em; }
 .productionSectionHead a { display: inline-flex; align-items: center; gap: 4px; color: #9fdcff; font-size: 12px; text-decoration: none; white-space: nowrap; }
 .productionSectionHead a:hover { color: var(--text); }
-.productionFocusBody { display: grid; grid-template-columns: 160px minmax(0,1fr) auto; align-items: center; gap: 15px; }
-.productionFocusBody img { border-radius: 9px; object-fit: cover; }
+.productionFocusBody { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 15px; }
 .productionFocusBody h3 { font-size: 20px; margin-bottom: 2px !important; }
 .productionFocusBody p { color: var(--secondary); margin-bottom: 10px !important; }
 .productionFocusPercent { font-size: 18px; }
@@ -346,7 +345,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .focusToggle:hover, .focusToggleActive { border-color: var(--gold); color: var(--gold); background: rgba(244,189,72,.14); }
 .focusToggleActive { box-shadow: 0 0 0 3px rgba(244,189,72,.1); }
 @media (max-width: 900px) { .productionStats { grid-template-columns: repeat(2,1fr); } .productionMainGrid, .productionBottomGrid { grid-template-columns: 1fr; } .productionStages { grid-template-columns: repeat(5, minmax(145px, 1fr)); overflow-x: auto; } .productionProjectRow { grid-template-columns: 72px minmax(0,1fr) auto 36px; gap: 10px; } .productionProjectRow img { width: 70px; height: 49px; } .productionProjectRow .productionProgress, .productionProjectRow > b, .productionProjectTime { display: none; } }
-@media (max-width: 560px) { .productionPage { margin-top: 0; } .productionHeader { margin-bottom: 20px; } .productionHeader h1 { font-size: 31px; } .productionSub { font-size: 12px; } .productionStats { gap: 8px; } .productionStat { padding: 13px; gap: 2px 8px; } .productionStatIcon { width: 34px; height: 34px; } .productionStat strong { font-size: 21px; } .productionFocusBody { grid-template-columns: 94px minmax(0,1fr) auto; gap: 10px; } .productionFocusBody img { width: 94px; height: 70px; } .productionFocusBody h3 { font-size: 16px; } .productionMeta { gap: 10px; font-size: 11px; } .productionCard { padding: 15px; } .productionStages > span { min-width: 91px; } }
+@media (max-width: 560px) { .productionPage { margin-top: 0; } .productionHeader { margin-bottom: 20px; } .productionHeader h1 { font-size: 31px; } .productionSub { font-size: 12px; } .productionStats { gap: 8px; } .productionStat { padding: 13px; gap: 2px 8px; } .productionStatIcon { width: 34px; height: 34px; } .productionStat strong { font-size: 21px; } .productionFocusBody { grid-template-columns: minmax(0,1fr) auto; gap: 10px; } .productionFocusBody h3 { font-size: 16px; } .productionMeta { gap: 10px; font-size: 11px; } .productionCard { padding: 15px; } .productionStages > span { min-width: 91px; } }
 
 /* ── Project workspace ───────────────────────────────────────────────── */
 .projectWorkspace { max-width: 1280px; margin: 0 auto; }
