@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionState } from "./actions";
 import { requireAdmin } from "./auth";
-import { seedProjectStages, STAGES, TIME_CATEGORIES } from "./production";
+import { seedProjectStages, STAGES, TIME_CATEGORIES, PROJECT_LANES } from "./production";
 
 const uuid = z.uuid();
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -63,6 +63,17 @@ export async function toggleProjectFocus(projectId: string, focused: boolean): P
   await audit(focused ? "focus" : "unfocus", "project", projectId);
   revalidatePath("/admin", "layout");
   return { ok: true, message: focused ? "Project is now the focus." : "Project removed from focus." };
+}
+
+export async function setProjectLane(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireAdmin();
+  const input = z.object({ project_id: uuid, lane: z.enum(PROJECT_LANES) }).safeParse(form(fd));
+  if (!input.success) return fail("Choose a valid project lane.");
+  const { error } = await supabase.from("projects").update({ workflow_lane: input.data.lane }).eq("id", input.data.project_id);
+  if (error) return fail("Could not update the project lane.");
+  await audit("lane", "project", input.data.project_id, { lane: input.data.lane });
+  refresh(input.data.project_id); revalidatePath("/admin/projects");
+  return { ok: true, message: "Project lane updated." };
 }
 
 export async function toggleProjectTask(_: ActionState, fd: FormData): Promise<ActionState> {

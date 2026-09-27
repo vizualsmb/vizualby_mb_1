@@ -6,12 +6,14 @@ import type { AdminSupabaseClient } from "@/lib/supabase/service";
 export const STAGES = ["footage", "editing", "color", "vfx", "sound"] as const;
 export const TIME_CATEGORIES = ["editing", "vfx", "color", "sound", "revisions", "other"] as const;
 export type ProductionStage = typeof STAGES[number];
+export const PROJECT_LANES = ["active", "review", "delivered"] as const;
+export type ProjectLane = typeof PROJECT_LANES[number];
 export type TimeCategory = typeof TIME_CATEGORIES[number];
 
 export type Project = {
   id: string; booking_id: string | null; client_id: string | null; title: string | null; project_type: string | null;
   quoted_price_cents: number | null; shoot_at: string | null; delivery_at: string | null; revisions_included: number;
-  notes: string | null; current_stage: ProductionStage; is_focus: boolean; created_at: string; updated_at: string;
+  notes: string | null; current_stage: ProductionStage; workflow_lane: ProjectLane; is_focus: boolean; created_at: string; updated_at: string;
 };
 export type ProjectStage = { id: string; project_id: string; stage: ProductionStage; status: string; due_at: string | null; completed_at: string | null; sort_order: number };
 export type ProjectTask = { id: string; project_id: string; stage: ProductionStage; title: string; completed: boolean; completed_at: string | null; due_at: string | null; sort_order: number; notes: string | null };

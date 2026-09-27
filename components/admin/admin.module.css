@@ -319,6 +319,23 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .productionStageProject:hover { border-color: var(--gold); background: rgba(255,255,255,.05); }
 .productionStageProject strong { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .productionStageProject strong svg { flex: 0 0 auto; color: currentColor; opacity: .72; }
+.productionParkingHint { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.projectParking { margin-top: 16px; }
+.projectParkingList { display: grid; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.projectParkingRow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: 10px 13px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.projectParkingRow:last-child { border-bottom: 0; }
+.projectParkingMark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: rgba(211,173,120,.12); color: var(--gold); font-weight: 700; }
+.projectParkingInfo { display: grid; gap: 3px; min-width: 0; }
+.projectParkingInfo a { overflow: hidden; color: var(--text); text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.projectParkingInfo a:hover { color: var(--gold); }
+.projectParkingInfo small { color: var(--secondary); font-size: 11px; }
+.projectLaneForm { display: flex; align-items: center; gap: 6px; }
+.projectLaneSelect, .projectLaneSave { min-height: 32px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-2); color: var(--text); font-size: 11px; }
+.projectLaneSelect { padding: 0 7px; }
+.projectLaneSave { padding: 0 9px; cursor: pointer; }
+.projectLaneSave:hover { border-color: var(--gold); color: var(--gold); }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 600px) { .projectParkingRow { grid-template-columns: 30px minmax(0, 1fr); } .projectLaneForm { grid-column: 2; } }
 .productionStageProject small { color: var(--secondary); font-size: 10px; }
 .productionStageEmpty { padding: 8px; color: var(--muted); font-size: 11px; }
 .productionFocusPicker { display: flex; align-items: center; gap: 5px; }
