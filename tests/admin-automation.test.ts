@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { leadSourceFrom } from "../lib/admin/labels";
 import { adminNewBooking, balanceReminder, shootReminder, type MessageBooking } from "../lib/admin/messages";
+import { bookingConfirmationSms, bookingReminderSms } from "../lib/admin/sms-messages";
 
 test("booking form answers map to lead sources", () => {
   const cases: [string, string][] = [
@@ -38,4 +39,10 @@ test("messages are plain text: client-supplied names are never treated as markup
   const m = adminNewBooking({ ...booking, client_name: "<script>x</script>" }, "https://admin.vizualbymb.com/admin/bookings/1");
   assert.equal(typeof m.text, "string");
   assert.ok(!("html" in m));
+});
+
+test("booking SMS messages start with the studio brand", () => {
+  const smsBooking = { client_name: "John Doe", project: "Music Video", shoot_start: booking.shoot_start, location: booking.location };
+  assert.ok(bookingConfirmationSms(smsBooking, studio.name).startsWith("VIZUAL BY MB"));
+  assert.ok(bookingReminderSms(smsBooking, studio.name).startsWith("VIZUAL BY MB"));
 });

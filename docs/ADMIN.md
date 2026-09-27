@@ -248,7 +248,7 @@ Before enabling a deal, set the package's Cal.com event to the discounted deposi
 
 Migration: `supabase/migrations/20260925000000_automation.sql`. Run it after the foundation migration.
 
-**Daily job.** Vercel Cron calls `GET /api/admin/cron` at 13:00 UTC (9 AM New York in summer, 8 AM in winter). It requires `Authorization: Bearer $CRON_SECRET`, compared in constant time. Settings also has a **Run daily automation now** button. Every step is idempotent.
+**Scheduled jobs.** Vercel Cron continues to call `GET /api/admin/cron` at 13:00 UTC (9 AM New York in summer, 8 AM in winter). GitHub Actions calls the separate hourly `GET /api/admin/sms-reminders` endpoint from `.github/workflows/sms-reminders.yml`; it finds shoots 23.5–25 hours away, so confirmations and reminders do not alter Cal.com or Stripe checkout. Both endpoints require `Authorization: Bearer $CRON_SECRET`, compared in constant time. GitHub Actions is used because this project is on Vercel Hobby, which rejects sub-daily Vercel Cron schedules. Settings also has a **Run daily automation now** button. Every step is idempotent.
 
 | Rule | What happens | Setting |
 |---|---|---|
@@ -268,7 +268,11 @@ Migration: `supabase/migrations/20260925000000_automation.sql`. Run it after the
 | Balance reminder | client | N days before the due date (default 3), includes the payment link when it matches the balance | **off** |
 | Overdue notice | client | once, after the due date passes | **off** |
 
-Client emails stay off until you switch them on in Settings. Cal.com already sends booking confirmations and Stripe sends payment receipts, so those are not duplicated. Every message is logged in `notifications` with a unique key, so none is sent twice; a failed send is retried on the next run. The last 12 are listed in Settings. To add SMS, add a branch on `channel` in `lib/admin/notify.ts`.
+Client emails stay off until you switch them on in Settings. Cal.com remains the booking and checkout owner, while its signed webhook sends a client SMS only after the booking has reconciled as **Confirmed**. Stripe remains unchanged and can independently reach that same confirmed state; the notification key makes this one confirmation text. The hourly SMS job sends one reminder 23.5–25 hours before the shoot, keyed by the booked start time so a reschedule receives the correct new reminder. Every message is logged in `notifications` with a unique key, so webhook retries and cron reruns do not double-send. A failed reminder is retried while it remains in that window; a failed confirmation is retained in the notification log for operational follow-up. The last 12 are listed in Settings.
+
+**Twilio SMS setup.** Add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER` in Vercel and locally (never `NEXT_PUBLIC_*`). Set `SMS_DEFAULT_COUNTRY_CODE` for local ten-digit input; other countries must be entered in E.164 format. The server normalizes and validates the phone before it reaches Cal.com, logs only booking IDs and provider outcomes, and sends to Twilio from server code only.
+
+**GitHub Actions setup.** After pushing the workflow, add the existing production `CRON_SECRET` as a repository Actions secret named `CRON_SECRET` at `github.com/mozzboss/vizualby_mb/settings/secrets/actions`. Use **Run workflow** once to verify the endpoint; scheduled runs are hourly in UTC and GitHub may delay scheduled jobs during high load.
 
 **Balance payment links.** On a booking with a balance, **Create payment link** makes a single-use Stripe Payment Link for the balance (or a partial amount). Copy it into a text or email. When the client pays:
 - the existing signed Stripe webhook sees `metadata.admin_booking_id`, records the payment on that booking, clears the link, and emails you

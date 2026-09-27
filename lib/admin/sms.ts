@@ -1,13 +1,9 @@
 import "server-only";
+import { normalizePhone } from "@/lib/booking/phone";
 
 // Keep phone handling provider-neutral so this delivery layer can be reused by
 // future client sites. Twilio receives E.164 values only.
-export function normalizePhone(value: string, defaultCountryCode = process.env.SMS_DEFAULT_COUNTRY_CODE || "1") {
-  const compact = value.trim().replace(/^tel:/i, "").replace(/[\s().-]/g, "");
-  const digits = compact.startsWith("+") ? compact.slice(1) : compact;
-  const normalized = compact.startsWith("+") ? digits : digits.length === 10 ? `${defaultCountryCode}${digits}` : digits;
-  return /^[1-9]\d{7,14}$/.test(normalized) ? `+${normalized}` : null;
-}
+export { normalizePhone };
 
 type SmsInput = { to: string; body: string };
 

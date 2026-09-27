@@ -201,7 +201,9 @@ export async function sendBookingConfirmationSms(uid: string) {
 }
 
 export async function sendBookingReminderSms(db: Db, now = new Date()) {
-  const from = new Date(now.getTime() + 23 * 60 * 60 * 1000).toISOString();
+  // This job runs hourly. A 90-minute window allows normal cron jitter while
+  // keeping the reminder close to 24 hours before the shoot.
+  const from = new Date(now.getTime() + 23.5 * 60 * 60 * 1000).toISOString();
   const to = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
   const { data, error } = await db.from("booking_ledger")
     .select("id, client_name, client_phone, project_title, package_name, shoot_start, location, status")

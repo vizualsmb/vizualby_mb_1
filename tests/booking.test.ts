@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import Stripe from "stripe";
 import { quoteFor } from "../data/booking";
 import { intakeSchema } from "../lib/booking/schema";
+import { normalizePhone } from "../lib/booking/phone";
 import { validCalSignature, boundedBody } from "../lib/booking/security";
 import { paymentMatches } from "../lib/booking/verification";
 import { blockIsFree, isStudioDayOff, bookedMinutesByDay, clearOfOtherShoots, fitsDailyLimit, studioBlockFor, studioStartTimes, withinStudioHours } from "../lib/booking/hours";
@@ -32,8 +33,14 @@ test("owner music prices, fixed deposit, and scope boundaries", () => {
 });
 test("intake requires consent, valid identity and a timestamp, rejects honeypots", () => {
   assert.equal(intakeSchema.safeParse(intake).success, true);
-  for (const change of [{ terms: false }, { email: "invalid" }, { selectedSlot: "tomorrow" }, { website: "spam" }, { project: "tiny" }]) assert.equal(intakeSchema.safeParse({ ...intake, ...change }).success, false);
+  for (const change of [{ terms: false }, { email: "invalid" }, { phone: "not-a-phone" }, { selectedSlot: "tomorrow" }, { website: "spam" }, { project: "tiny" }]) assert.equal(intakeSchema.safeParse({ ...intake, ...change }).success, false);
   const parsed = intakeSchema.parse({ ...intake, price: 1, deposit: 1 }); assert.equal("price" in parsed, false); assert.equal("deposit" in parsed, false);
+  assert.equal(parsed.phone, "+16175550100");
+});
+test("phone normalization accepts E.164 and local North American input only when unambiguous", () => {
+  assert.equal(normalizePhone("(617) 555-0100"), "+16175550100");
+  assert.equal(normalizePhone("+44 20 7946 0958"), "+442079460958");
+  assert.equal(normalizePhone("020 7946 0958"), null);
 });
 test("Cal webhook verifies exact raw body with constant-time digest comparison", () => {
   const body = '{"triggerEvent":"BOOKING_PAID"}'; const secret = "test-secret";

@@ -1,0 +1,20 @@
+name: Booking SMS reminders
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call production SMS reminder endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$CRON_SECRET"
+          curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://vizualbymb.com/api/admin/sms-reminders
