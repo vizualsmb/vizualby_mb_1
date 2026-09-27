@@ -6,7 +6,7 @@ import { Card, PageHeader } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { requireAdmin } from "@/lib/admin/auth";
 import { createBooking } from "@/lib/admin/actions";
-import { bookingPackages } from "@/data/booking";
+import { catalogPackages } from "@/lib/booking/catalog.server";
 import { BOOKING_STATUSES, LEAD_SOURCES, SERVICE_CATEGORIES } from "@/lib/admin/labels";
 import { usd } from "@/lib/admin/money";
 
@@ -16,7 +16,8 @@ export default async function NewBookingPage({ searchParams }: { searchParams: P
   const { client } = await searchParams;
   const { supabase } = await requireAdmin();
   const { data: clients } = await supabase.from("clients").select("id, name, email").order("name").limit(500);
-  const groups = Object.entries(SERVICE_CATEGORIES).map(([id, label]) => [label, bookingPackages.filter((p) => p.category === id && !p.inquiryOnly)] as const).filter(([, list]) => list.length);
+  const packages = await catalogPackages(supabase);
+  const groups = Object.entries(SERVICE_CATEGORIES).map(([id, label]) => [label, packages.filter((p) => p.category === id && !p.inquiryOnly)] as const).filter(([, list]) => list.length);
 
   return <>
     <Link href="/admin/bookings" className={s.cardLink}><ArrowLeft size={14} aria-hidden style={{ marginRight: 6 }} />Bookings</Link>

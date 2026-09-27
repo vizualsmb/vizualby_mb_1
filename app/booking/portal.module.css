@@ -58,13 +58,19 @@
 .featured { border-color: #a88b63; background: linear-gradient(155deg, #2e2a20 0%, #1c1e19 70%); }
 .packageTop { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 8px; letter-spacing: .06em; color: var(--secondary); text-transform: uppercase; min-height: 23px; margin-bottom: 23px; }
 .featuredTag { color: #e6c591; font-size: 7px; border: 1px solid #736246; padding: 4px 6px; }
+.dealPackage { border-color: #77664d; background: linear-gradient(155deg, #26231c 0%, #171815 68%); }
+.dealTag { color: #ead2aa; font-size: 7px; border: 1px solid #806b4d; padding: 4px 7px; letter-spacing: .12em; }
 .package h3 { font: 500 clamp(30px, 2.6vw, 43px)/1.05 var(--display); text-transform: uppercase; letter-spacing: -.015em; margin-bottom: 12px; }
 .tagline { font-size: 11px; line-height: 1.7; color: var(--secondary); min-height: 39px; max-width: 245px; margin-bottom: 25px; }
 .price { margin-bottom: 25px; }
 .price > span { display: block; font-size: 7px; letter-spacing: .13em; color: var(--secondary); margin-bottom: 6px; }
 .price strong { display: block; font: 500 48px/1 var(--display); letter-spacing: -.025em; }
 .price strong small { font: 400 9px/1 Arial, sans-serif; color: var(--secondary); margin-left: 8px; letter-spacing: .03em; }
+.price del { display: block; width: fit-content; color: #99998f; font-size: 14px; margin-bottom: 4px; text-decoration-thickness: 1px; }
+.price .savings { display: block; color: var(--gold); font-size: 9px; letter-spacing: .12em; margin-top: 9px; }
 .price p { font-size: 10px; color: var(--gold); margin: 10px 0 0; }
+.dealDetails { display: grid; gap: 5px; padding: 0 0 17px; color: #aaa99e; font-size: 9px; }
+.dealDetails strong { color: #e8e4d8; font-size: 10px; font-weight: 500; }
 .packageStats { padding: 15px 0; display: flex; align-items: center; flex-wrap: wrap; gap: 15px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); font-size: 10px; color: #c7c7bc; }
 .packageStats span { display: flex; align-items: center; gap: 7px; }
 .packageStats svg { color: #939786; stroke-width: 1.3; }
@@ -110,6 +116,8 @@
 .summaryLines { padding-top: 22px; }
 .summaryLines > div { display: flex; justify-content: space-between; gap: 16px; font-size: 11px; margin-bottom: 14px; color: var(--secondary); }
 .summaryLines .total { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text); }
+.summaryLines del { color: #97978d; text-decoration-thickness: 1px; }
+.summaryLines .dealSaving, .summaryLines .dealSaving strong { color: var(--gold); }
 .deposit { margin: 24px -28px 20px; padding: 22px 28px; background: #29281f; display: flex; justify-content: space-between; align-items: center; gap: 15px; }
 .deposit span { font-size: 8px; letter-spacing: .12em; color: var(--gold); }
 .deposit strong { font: 500 39px/1 var(--display); color: var(--gold); }
@@ -136,6 +144,10 @@
 .consent input { width: 19px; height: 19px; accent-color: var(--gold); flex-shrink: 0; margin: 0; }
 .consent a { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
 .intake > .primaryButton { width: 100%; }
+.promoCode { display: grid; gap: 8px; margin: 4px 0 24px; color: #d4d3c8; font-size: 11px; }
+.promoCode > span { color: var(--gold); }
+.promoCode input { width: 100%; min-height: 51px; padding: 14px; color: var(--text); background: #191a17; border: 1px solid #766345; border-radius: 0; text-transform: uppercase; letter-spacing: .08em; }
+.promoCode small { color: var(--secondary); font-size: 9px; }
 .secureNote { color: var(--secondary); font-size: 10px; display: flex; align-items: center; justify-content: center; gap: 9px; margin: 14px 0 0; }
 .secureNote svg { flex-shrink: 0; }
 .formTrap { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -393,6 +405,18 @@
   transition: background .25s ease, color .25s ease, border-color .25s ease, transform .25s ease;
 }
 .categories button:hover { border-color: #fff; background: #151515; transform: translateY(-3px); }
+.detailsStep .summary { display: none; }
+.paymentSummary { display: none; }
+.summaryMeta, .summaryLines, .summary .balance, .summary .smallText, .summaryFoot { display: none; }
+.summary { padding: 28px 30px; }
+.summary h3 { margin-bottom: 18px; }
+.summary .deposit { margin: 0 -30px -28px; }
+.packagePaymentPicker { display: grid; gap: 9px; margin-top: 14px; padding: 14px; border: 1px solid var(--gold); background: #171714; }
+.packagePaymentPicker p { margin: 0 0 3px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: #c9c5bd; }
+.packagePaymentPicker button { width: 100%; justify-content: space-between; }
+.packagePaymentPicker button strong { margin-left: auto; }
+.packagePaymentPicker button small { display: block; width: 100%; margin-top: 3px; opacity: .72; text-align: left; }
+.packagePaymentPicker .textLink { justify-content: center; border: 0; padding: 4px; }
 .categories button .categoryTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #868686; }
 .categories button .categoryTop > span { color: inherit; font-size: 9px; letter-spacing: .12em; }
 .categories button .categoryTop svg { color: #fff; opacity: .65; transition: transform .25s ease, opacity .25s ease; }
@@ -426,3 +450,10 @@
   .essentialList { gap: 7px; margin-bottom: 18px; }
   .essentialList li { font-size: 10px; }
 }
+.paymentSummary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; margin-bottom: 18px; border: 1px solid var(--gold); background: #25251e; }
+.paymentSummary p { margin: 0; display: grid; gap: 4px; }
+.paymentSummary strong { font-size: 13px; font-weight: 500; }
+.paymentSummary span { font-size: 11px; color: var(--secondary); }
+.paymentSummary button { background: none; border: 0; padding: 0; cursor: pointer; flex-shrink: 0; }
+.timeGroup { display: block; width: 100%; margin: 14px 0 8px; font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--secondary); }
+.timeSlots p + .timeGroup { margin-top: 0; }

@@ -11,6 +11,10 @@ import { runDailyAutomation } from "./automation";
 import { createSupabaseService } from "@/lib/supabase/service";
 import { nyInstant } from "./time";
 import { BOOKING_STATUSES, CLIENT_TYPES, EXPENSE_CATEGORIES, LEAD_SOURCES, PAYMENT_METHODS, PAYMENT_TYPES, keysOf } from "./labels";
+import { syncExistingBookingsToAdmin } from "./sync";
+import { catalogPackages } from "@/lib/booking/catalog.server";
+import { calEvents } from "@/lib/booking/config";
+import { rollbackCalPackage, syncCalPackage, syncCatalogPackage } from "@/lib/booking/cal-sync";
 
 // Every action authorizes itself (requireAdmin) and validates its input. The proxy
 // is not a security boundary for Server Functions.
@@ -31,11 +35,20 @@ async function audit(action: string, entity: string, entityId: string | null, da
 }
 const fail = (error: string): ActionState => ({ error });
 
+function promotionIsLive(promotion: { enabled: boolean; starts_on: string; ends_on: string; booking_deadline: string | null }, today: string) {
+  return promotion.enabled && promotion.starts_on <= today && promotion.ends_on >= today && (!promotion.booking_deadline || promotion.booking_deadline >= today);
+}
+
 // ── Bookings ─────────────────────────────────────────────────────────────────
 export async function updateBookingStatus(_: ActionState, fd: FormData): Promise<ActionState> {
   const { supabase } = await requireAdmin();
   const input = z.object({ id: uuid, status: z.enum(BOOKING_STATUSES.map(([s]) => s) as [string, ...string[]]) }).safeParse(form(fd));
   if (!input.success) return fail("Choose a valid status.");
+  if (input.data.status === "paid") {
+    const { data: booking, error: lookupError } = await supabase.from("booking_ledger").select("balance_cents").eq("id", input.data.id).maybeSingle();
+    if (lookupError || !booking) return fail("Booking not found.");
+    if (booking.balance_cents > 0) return fail(`This booking still has ${usd(booking.balance_cents)} due. Record the final payment before marking it paid.`);
+  }
   const patch: Record<string, unknown> = { status: input.data.status };
   if (input.data.status === "canceled") patch.canceled_at = new Date().toISOString();
   if (input.data.status === "delivered") patch.delivered_at = new Date().toISOString();
@@ -101,10 +114,11 @@ export async function createBooking(_: ActionState, fd: FormData): Promise<Actio
   }).safeParse(form(fd));
   if (!input.success) return fail("Check the required fields: client, price and status.");
   const d = input.data;
-  const pkg = bookingPackages.find((p) => p.id === d.package_id);
+  const pkg = (await catalogPackages(supabase)).find((p) => p.id === d.package_id);
   const price = d.price ? parseCents(d.price) : pkg?.price ?? null;
   const deposit = d.deposit ? parseCents(d.deposit) : pkg?.deposit ?? 0;
   if (price === null || deposit === null) return fail("Enter the agreed price, e.g. 750.");
+  if (d.status === "paid" && price > 0) return fail("Create the booking first, then record its payment before marking it paid.");
 
   let clientId = d.client_id;
   if (!clientId) {
@@ -183,6 +197,18 @@ export async function updateClient(_: ActionState, fd: FormData): Promise<Action
   return { ok: true, message: "Saved" };
 }
 
+export async function removeClient(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireAdmin();
+  const id = uuid.safeParse(fd.get("id"));
+  if (!id.success) return fail("Client not found.");
+  const { data: removed, error } = await supabase.from("clients").update({ archived_at: new Date().toISOString() }).eq("id", id.data).is("archived_at", null).select("id, name, email").maybeSingle();
+  if (error) return fail("Could not remove this client.");
+  if (!removed) return fail("Client not found or already removed.");
+  await audit("remove", "client", id.data, removed);
+  revalidatePath("/admin", "layout");
+  redirect("/admin/clients");
+}
+
 // ── Expenses ─────────────────────────────────────────────────────────────────
 const RECEIPT_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
 
@@ -208,7 +234,7 @@ export async function addExpense(_: ActionState, fd: FormData): Promise<ActionSt
   if (!file) return { ok: true, message: "Expense added" };
 
   const path = `${spent_on.slice(0, 4)}/${expense.id}.${RECEIPT_TYPES[file.type]}`;
-  const { error: uploadError } = await supabase.storage.from("receipts").upload(path, file, { contentType: file.type, upsert: false });
+  const { error: uploadError } = await supabase.storage.from("vizualby-mb-receipts").upload(path, file, { contentType: file.type, upsert: false });
   if (uploadError) return { ok: true, message: "Expense added, but the receipt did not upload. Try again from a smaller file." };
   await supabase.from("expenses").update({ receipt_path: path }).eq("id", expense.id);
   return { ok: true, message: "Expense and receipt saved" };
@@ -220,7 +246,7 @@ export async function deleteExpense(_: ActionState, fd: FormData): Promise<Actio
   if (!id.success) return fail("Expense not found.");
   const { data: removed, error } = await supabase.from("expenses").delete().eq("id", id.data).select("name, amount_cents, spent_on, receipt_path").maybeSingle();
   if (error) return fail("Could not delete the expense.");
-  if (removed?.receipt_path) await supabase.storage.from("receipts").remove([removed.receipt_path]);
+  if (removed?.receipt_path) await supabase.storage.from("vizualby-mb-receipts").remove([removed.receipt_path]);
   await audit("delete", "expense", id.data, removed);
   revalidatePath("/admin", "layout");
   return { ok: true, message: "Expense deleted" };
@@ -244,6 +270,144 @@ export async function updateSettings(_: ActionState, fd: FormData): Promise<Acti
   await audit("update", "business_settings", null, { ...input.data, ...toggles });
   revalidatePath("/admin/settings");
   return { ok: true, message: "Settings saved" };
+}
+
+export async function savePromotion(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireAdmin();
+  if (fd.get("intent") === "delete") {
+    const id = uuid.safeParse(fd.get("id"));
+    if (!id.success) return fail("Deal not found.");
+    const { data: promotion } = await supabase.from("promotions").select("*").eq("id", id.data).maybeSingle();
+    if (!promotion) return fail("Deal not found.");
+    const pkg = (await catalogPackages(supabase)).find((item) => item.id === promotion.package_id);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    let calBefore: Awaited<ReturnType<typeof syncCalPackage>> | null = null;
+    if (pkg && calEvents()[pkg.id] && promotionIsLive(promotion, today)) {
+      try { calBefore = await syncCatalogPackage(pkg, pkg.price); }
+      catch (error) {
+        console.error("Cal.com deal deletion sync failed", error);
+        return fail("Cal.com could not restore the regular package price, so the deal was not deleted.");
+      }
+    }
+    const { error } = await supabase.from("promotions").delete().eq("id", id.data);
+    if (error) {
+      if (calBefore) await rollbackCalPackage(calBefore).catch((rollbackError) => console.error("Cal.com rollback failed after deal deletion error", rollbackError));
+      return fail("Could not delete this deal.");
+    }
+    await audit("delete", "promotion", id.data, { package_id: promotion.package_id });
+    revalidatePath("/admin/services"); revalidatePath("/booking");
+    return { ok: true, message: "Deal deleted and regular pricing restored" };
+  }
+  const input = z.object({
+    id: optional(uuid), package_id: z.string().trim().min(1).max(60),
+    original_price: z.string().trim().max(20), discounted_price: z.string().trim().max(20),
+    discount_type: z.enum(["flat", "percentage"]), label: text(40), value_note: text(160),
+    starts_on: day, ends_on: day, booking_deadline: optional(day),
+    limited_quantity: optional(z.coerce.number().int().min(1).max(10000)), promo_code: text(40),
+  }).safeParse(form(fd));
+  if (!input.success) return fail("Check the package, prices, dates, and optional limits.");
+  const d = input.data;
+  const pkg = (await catalogPackages(supabase)).find((item) => item.id === d.package_id && !item.inquiryOnly);
+  const original = parseCents(d.original_price);
+  const discounted = parseCents(d.discounted_price);
+  if (!pkg || !original || !discounted) return fail("Choose a bookable package and enter valid prices.");
+  if (original !== pkg.price) return fail(`The original price must match the package price (${usd(pkg.price)}). Change the package first if needed.`);
+  if (discounted >= original) return fail("The deal price must be lower than the original price.");
+  if (d.ends_on < d.starts_on) return fail("The end date must be on or after the start date.");
+  if (d.booking_deadline && (d.booking_deadline < d.starts_on || d.booking_deadline > d.ends_on)) return fail("The booking deadline must fall within the offer dates.");
+  const row = {
+    package_id: d.package_id, enabled: fd.get("enabled") === "on", original_price_cents: original,
+    discounted_price_cents: discounted, discount_type: d.discount_type, label: d.label,
+    value_note: d.value_note, starts_on: d.starts_on, ends_on: d.ends_on,
+    booking_deadline: d.booking_deadline ?? null, limited_quantity: d.limited_quantity ?? null,
+    promo_code: d.promo_code ? d.promo_code.toUpperCase() : null,
+  };
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const prior = d.id ? (await supabase.from("promotions").select("enabled, starts_on, ends_on, booking_deadline").eq("id", d.id).maybeSingle()).data : null;
+  const needsCalSync = !!calEvents()[d.package_id] && (promotionIsLive(row, today) || (!!prior && promotionIsLive(prior, today)));
+  let calBefore: Awaited<ReturnType<typeof syncCalPackage>> | null = null;
+  if (needsCalSync) {
+    try {
+      calBefore = await syncCatalogPackage(pkg, promotionIsLive(row, today) ? discounted : pkg.price);
+    } catch (error) {
+      console.error("Cal.com promotion sync failed", error);
+      return fail("Cal.com could not confirm the deal price. Nothing was changed. Check the event connection and try again.");
+    }
+  }
+  const result = d.id ? await supabase.from("promotions").update(row).eq("id", d.id) : await supabase.from("promotions").insert(row);
+  if (result.error) {
+    if (calBefore) {
+      try { await rollbackCalPackage(calBefore); }
+      catch (rollbackError) { console.error("Cal.com rollback failed after promotion save error", rollbackError); }
+    }
+    return fail(result.error.code === "23505" ? "Disable the other active deal for this package first." : "Could not save this promotion.");
+  }
+  await audit(d.id ? "update" : "create", "promotion", d.id ?? null, { ...row, promo_code: row.promo_code ? "[set]" : null });
+  revalidatePath("/admin/services");
+  revalidatePath("/booking");
+  const baseMessage = d.id ? "Deal updated" : "Deal created";
+  return { ok: true, message: needsCalSync ? `${baseMessage} and Cal.com pricing verified` : baseMessage };
+}
+
+export async function saveServicePackage(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireAdmin();
+  const input = z.object({
+    package_id: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+    category: z.enum(["content", "music", "brand", "events", "estate", "custom"]),
+    name: z.string().trim().min(1).max(100), tagline: z.string().trim().max(240),
+    price: z.string().trim().max(20), deposit_percent: z.coerce.number().min(0).max(100),
+    duration_minutes: z.coerce.number().int().min(0).max(4320), locations: z.coerce.number().int().min(0).max(100),
+    location_label: text(80), revisions: z.coerce.number().int().min(0).max(100),
+    delivery: z.string().trim().max(120), includes: z.string().max(4000),
+    sort_order: z.coerce.number().int().min(0).max(10000), is_new: z.enum(["yes", "no"]),
+  }).safeParse(form(fd));
+  if (!input.success) return fail("Check the package name, id, pricing, and production details.");
+  const d = input.data;
+  const price = parseCents(d.price);
+  const inquiryOnly = fd.get("inquiry_only") === "on";
+  if (price === null || (!inquiryOnly && price <= 0)) return fail("Enter a package price, or mark it inquiry-only.");
+  if (d.is_new === "yes") {
+    const staticMatch = bookingPackages.some((pkg) => pkg.id === d.package_id);
+    const { data: stored } = await supabase.from("service_packages").select("package_id").eq("package_id", d.package_id).maybeSingle();
+    if (staticMatch || stored) return fail("That package ID already exists. Edit the existing package instead.");
+  }
+  const includes = d.includes.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 30);
+  if (!includes.length) return fail("Add at least one included item, one per line.");
+  const row = {
+    package_id: d.package_id, category: d.category, name: d.name, tagline: d.tagline, price_cents: price,
+    deposit_percent: d.deposit_percent, duration_minutes: d.duration_minutes, locations: d.locations,
+    location_label: d.location_label, revisions: d.revisions, delivery: d.delivery, includes,
+    featured: fd.get("featured") === "on", inquiry_only: inquiryOnly,
+    starting_price: fd.get("starting_price") === "on", active: fd.get("active") === "on", sort_order: d.sort_order,
+  };
+  const mapping = calEvents()[d.package_id];
+  const shouldSyncCal = row.active && !row.inquiry_only && !!mapping;
+
+  let calBefore: Awaited<ReturnType<typeof syncCalPackage>> | null = null;
+  if (shouldSyncCal) {
+    try {
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const { data: livePromotion } = await supabase.from("promotions").select("enabled, original_price_cents, discounted_price_cents, starts_on, ends_on, booking_deadline")
+        .eq("package_id", d.package_id).eq("enabled", true).lte("starts_on", today).gte("ends_on", today).maybeSingle();
+      const effectivePrice = livePromotion && livePromotion.original_price_cents === price && promotionIsLive(livePromotion, today) ? livePromotion.discounted_price_cents : price;
+      calBefore = await syncCatalogPackage({ id: d.package_id, name: d.name, minutes: d.duration_minutes, depositPercent: d.deposit_percent }, effectivePrice);
+    } catch (error) {
+      console.error("Cal.com package sync failed", error);
+      return fail("Cal.com could not confirm the new price. Nothing was changed. Check the event connection and try again.");
+    }
+  }
+  const { error } = await supabase.from("service_packages").upsert(row, { onConflict: "package_id" });
+  if (error) {
+    if (calBefore) {
+      try { await rollbackCalPackage(calBefore); }
+      catch (rollbackError) { console.error("Cal.com rollback failed after package save error", rollbackError); }
+    }
+    return fail("Could not save this package. Make sure the catalog migration has been applied.");
+  }
+  await audit(d.is_new === "yes" ? "create" : "update", "service_package", d.package_id, row);
+  revalidatePath("/admin/services"); revalidatePath("/admin/bookings/new"); revalidatePath("/booking");
+  const baseMessage = d.is_new === "yes" ? "Package created" : "Package updated";
+  return { ok: true, message: shouldSyncCal ? `${baseMessage} and Cal.com pricing verified` : mapping ? `${baseMessage}; Cal.com sync is paused while this package is unpublished or inquiry-only` : `${baseMessage}; connect a Cal.com event to enable online checkout` };
 }
 
 // ── Balance payment links ────────────────────────────────────────────────────
@@ -298,5 +462,21 @@ export async function runAutomationNow(): Promise<ActionState> {
     return { ok: true, message: `Done: ${status}; ${mail}.` };
   } catch {
     return fail("Automation failed. Try again, or check the server logs.");
+  }
+}
+
+export async function syncExistingBookings(): Promise<ActionState> {
+  await requireAdmin();
+  try {
+    const result = await syncExistingBookingsToAdmin();
+    await audit("sync", "website_bookings", null, result);
+    revalidatePath("/admin", "layout");
+    return {
+      ok: true,
+      message: `Synced ${result.synced} of ${result.found} stored bookings${result.skipped ? `; ${result.skipped} superseded record${result.skipped === 1 ? "" : "s"} skipped` : ""}.`,
+    };
+  } catch (error) {
+    console.error("Booking sync failed", error);
+    return fail("Booking sync failed. Check the server logs and try again.");
   }
 }

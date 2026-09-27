@@ -38,11 +38,11 @@ Use Cal event mappings for `music-run-and-gun` (120 minutes / USD 25000 cents on
 
 ## Approved studio hours
 
-Every day, including weekends, 6:00 AM – 12:00 AM (midnight) America/New_York. A shoot must start and finish inside this window, so the latest start is midnight minus the package duration (Run & Gun 10:00 PM, Creative 8:00 PM). The portal shows each time as the full shoot window, e.g. "10:00 AM – 12:00 PM" for Run & Gun.
+8:00 AM – 12:00 AM (midnight) on studio days. Studio days alternate weekly: a 3-day week (Tue, Wed, Sat) starting the week of Sep 21, 2026, then a 4-day week (Mon, Wed, Thu, Fri); Sundays always off (`STUDIO_WEEK_PATTERNS` in `lib/booking/hours.ts`) America/New_York. A shoot must start and finish inside this window, so the latest start is midnight minus the package duration (Run & Gun 10:00 PM, Creative 8:00 PM). The portal shows each time as the full shoot window, e.g. "10:00 AM – 12:00 PM" for Run & Gun.
 
 The portal enforces this in `lib/booking/hours.ts`, both in the date picker and when a checkout is created, so a looser Cal schedule cannot open extra times. Cal still needs matching settings:
 
-1. Cal → Availability → the schedule used by the music events: Sunday–Saturday, 6:00am to 12:00am (or the last option offered, e.g. 11:59pm; that would drop the final start time of each day). Time zone America/New_York.
+1. Cal → Availability → the schedule used by the music events: Monday–Saturday, 8:00am to 12:00am (Sunday unavailable) (or the last option offered, e.g. 11:59pm; that would drop the final start time of each day). Time zone America/New_York.
 2. Busy time and existing bookings are blocked through the connected Google Calendar (conflict checking is enabled). Google all-day events default to **Free** and will not block; set them to **Busy**.
 3. Days off: add a Cal date override marked unavailable, or put a Busy all-day event on the checked Google Calendar.
 

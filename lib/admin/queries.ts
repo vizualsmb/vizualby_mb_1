@@ -1,5 +1,5 @@
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AdminSupabaseClient } from "@/lib/supabase/service";
 import { addDays, addMonths, monthStart, nyDay, startOfNyDay, yearStart } from "./time";
 import { averageBookingValue, buildSeries, isCommitted, outstandingCents, summarize, type DateRange, type ExpenseRow, type PaymentRow } from "./finance";
 import { BOOKING_STATUSES, type BookingStatus, type PaymentState } from "./labels";
@@ -33,16 +33,16 @@ function must<T>(result: { data: T | null; error: { message: string } | null }) 
   return result.data as T;
 }
 
-export async function collectedPayments(db: SupabaseClient, fromDay: string) {
+export async function collectedPayments(db: AdminSupabaseClient, fromDay: string) {
   return must(await db.from("payments").select("amount_cents, refunded_cents, status, type, paid_at")
     .gte("paid_at", startOfNyDay(fromDay).toISOString()).order("paid_at")) as PaymentRow[];
 }
-export async function expensesSince(db: SupabaseClient, fromDay: string) {
+export async function expensesSince(db: AdminSupabaseClient, fromDay: string) {
   return must(await db.from("expenses").select("amount_cents, spent_on").gte("spent_on", fromDay)) as ExpenseRow[];
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
-export async function dashboardData(db: SupabaseClient, range: DateRange) {
+export async function dashboardData(db: AdminSupabaseClient, range: DateRange) {
   const today = nyDay(new Date());
   const earliest = [range.from, addMonths(monthStart(today), -1), yearStart(today)].sort()[0];
   const [payments, expenses, ledger] = await Promise.all([
@@ -72,7 +72,7 @@ export async function dashboardData(db: SupabaseClient, range: DateRange) {
     paymentsDue: due.slice(0, 6),
     bookingsThisYear: yearRows.filter((b) => b.status !== "canceled").length,
     pendingDeposits: ledger.filter((b) => b.status === "deposit_pending").length,
-    completedThisYear: yearRows.filter((b) => ["delivered", "paid"].includes(b.status)).length,
+    completedThisYear: yearRows.filter((b) => ["delivered", "archived"].includes(b.status)).length,
     pipeline: ledger.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.status]: (acc[b.status] ?? 0) + 1 }), {}),
   };
 }
@@ -83,7 +83,7 @@ export const BOOKING_FILTERS = [
   ["paid", "Paid"], ["deposit_pending", "Deposit pending"], ["editing", "In post"], ["delivered", "Delivered"], ["canceled", "Canceled"], ["archived", "Archived"],
 ] as const;
 
-export async function listBookings(db: SupabaseClient, { filter = "all", status, q, page = 1 }: { filter?: string; status?: string; q?: string; page?: number }) {
+export async function listBookings(db: AdminSupabaseClient, { filter = "all", status, q, page = 1 }: { filter?: string; status?: string; q?: string; page?: number }) {
   const today = nyDay(new Date());
   let query = db.from("booking_ledger").select(LIST_COLUMNS, { count: "exact" });
   const nowIso = new Date().toISOString();
@@ -110,7 +110,7 @@ export async function listBookings(db: SupabaseClient, { filter = "all", status,
   return { rows: (data ?? []) as unknown as LedgerRow[], total: count ?? 0 };
 }
 
-export async function bookingDetail(db: SupabaseClient, id: string) {
+export async function bookingDetail(db: AdminSupabaseClient, id: string) {
   if (!UUID.test(id)) return null;
   const [booking, addons, payments, events, expenses] = await Promise.all([
     db.from("booking_ledger").select("*").eq("id", id).maybeSingle().then(must),
@@ -130,7 +130,7 @@ export async function bookingDetail(db: SupabaseClient, id: string) {
 }
 
 // ── Clients ──────────────────────────────────────────────────────────────────
-export async function listClients(db: SupabaseClient, { q, page = 1, sort = "recent" }: { q?: string; page?: number; sort?: string }) {
+export async function listClients(db: AdminSupabaseClient, { q, page = 1, sort = "recent" }: { q?: string; page?: number; sort?: string }) {
   let query = db.from("client_summary").select("*", { count: "exact" });
   const term = cleanSearch(q);
   if (term) query = query.or(["name", "email", "phone", "company", "social"].map((c) => `${c}.ilike.%${term}%`).join(","));
@@ -141,7 +141,7 @@ export async function listClients(db: SupabaseClient, { q, page = 1, sort = "rec
   return { rows: (data ?? []) as ClientSummary[], total: count ?? 0 };
 }
 
-export async function clientDetail(db: SupabaseClient, id: string) {
+export async function clientDetail(db: AdminSupabaseClient, id: string) {
   if (!UUID.test(id)) return null;
   const [client, bookings] = await Promise.all([
     db.from("client_summary").select("*").eq("id", id).maybeSingle().then(must),
@@ -158,7 +158,7 @@ export async function clientDetail(db: SupabaseClient, id: string) {
 }
 
 // ── Payments & expenses ──────────────────────────────────────────────────────
-export async function listPayments(db: SupabaseClient, { status, page = 1 }: { status?: string; page?: number }) {
+export async function listPayments(db: AdminSupabaseClient, { status, page = 1 }: { status?: string; page?: number }) {
   let query = db.from("payments").select("*, bookings!inner(id, project_title, package_name, clients!inner(name))", { count: "exact" });
   if (status && ["pending", "succeeded", "failed", "refunded", "partially_refunded"].includes(status)) query = query.eq("status", status);
   const from = (Math.max(1, page) - 1) * PAGE_SIZE;
@@ -168,13 +168,13 @@ export async function listPayments(db: SupabaseClient, { status, page = 1 }: { s
   return { rows: (data ?? []) as Row[], total: count ?? 0 };
 }
 
-export async function listExpenses(db: SupabaseClient, range: { from: string; to: string }, category?: string) {
+export async function listExpenses(db: AdminSupabaseClient, range: { from: string; to: string }, category?: string) {
   let query = db.from("expenses").select("*").gte("spent_on", range.from).lte("spent_on", range.to);
   if (category) query = query.eq("category", category);
   return must(await query.order("spent_on", { ascending: false }).limit(500)) as Expense[];
 }
 
-export async function bookingOptions(db: SupabaseClient) {
+export async function bookingOptions(db: AdminSupabaseClient) {
   const rows = must(await db.from("booking_ledger").select("id, client_name, project_title, package_name, shoot_start").neq("status", "archived").order("shoot_start", { ascending: false, nullsFirst: true }).limit(200)) as Pick<LedgerRow, "id" | "client_name" | "project_title" | "package_name" | "shoot_start">[];
   return rows;
 }
@@ -192,7 +192,7 @@ function groupBy(rows: LedgerRow[], keyOf: (b: LedgerRow) => string) {
   return [...map.values()].sort((a, b) => b.collected - a.collected || b.bookings - a.bookings);
 }
 
-export async function analyticsData(db: SupabaseClient, sinceDay: string) {
+export async function analyticsData(db: AdminSupabaseClient, sinceDay: string) {
   const since = startOfNyDay(sinceDay).toISOString();
   const [ledger, costs] = await Promise.all([
     db.from("booking_ledger").select(`${LIST_COLUMNS}, package_id, lead_source_detail`).gte("created_at", since).limit(5000).then(must) as Promise<LedgerRow[]>,

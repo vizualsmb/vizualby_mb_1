@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test:booking": "tsx --test tests/booking.test.ts",
+    "test:assistant": "tsx --test tests/assistant-api.test.ts",
     "test:admin": "tsx --test tests/admin-finance.test.ts tests/admin-automation.test.ts",
     "test:booking:ui": "playwright test"
   },

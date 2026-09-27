@@ -1,5 +1,5 @@
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AdminSupabaseClient } from "@/lib/supabase/service";
 import { nyDay } from "../time";
 import { buildDemoData, type DemoTables } from "./data";
 
@@ -208,5 +208,5 @@ const demoStorage = { from: () => ({
 }) };
 
 export function createDemoClient() {
-  return { from: (table: string) => new Query(table), storage: demoStorage } as unknown as SupabaseClient;
+  return { from: (table: string) => new Query(table), storage: demoStorage } as unknown as AdminSupabaseClient;
 }

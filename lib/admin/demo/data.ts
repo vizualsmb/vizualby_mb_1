@@ -4,7 +4,7 @@ import { bookingAddons, bookingPackages } from "@/data/booking";
 import { addDays, nyDay, nyInstant } from "../time";
 
 type Row = Record<string, unknown>;
-export type DemoTables = Record<"clients" | "bookings" | "booking_addons" | "payments" | "expenses" | "booking_events" | "business_settings" | "audit_logs" | "notifications" | "admins", Row[]>;
+export type DemoTables = Record<"clients" | "bookings" | "booking_addons" | "payments" | "expenses" | "booking_events" | "business_settings" | "audit_logs" | "notifications" | "admins" | "projects" | "project_stages" | "project_tasks" | "project_time_sessions", Row[]>;
 
 const CLIENTS: [string, string | null, string, string][] = [
   ["Jay Rivers", null, "artist", "@jayrivers.music"], ["Kiara Santos", "Santos Studio", "brand", "@kiarasantos"],
@@ -59,7 +59,7 @@ export function buildDemoData(): DemoTables {
   const today = nyDay(new Date());
   const at = (offset: number, time = "15:00") => nyInstant(addDays(today, offset), time).toISOString();
   let eventId = 1;
-  const t: DemoTables = { clients: [], bookings: [], booking_addons: [], payments: [], expenses: [], booking_events: [], business_settings: [], audit_logs: [], notifications: [], admins: [] };
+  const t: DemoTables = { clients: [], bookings: [], booking_addons: [], payments: [], expenses: [], booking_events: [], business_settings: [], audit_logs: [], notifications: [], admins: [], projects: [], project_stages: [], project_tasks: [], project_time_sessions: [] };
 
   CLIENTS.forEach(([name, company, type, social], i) => t.clients.push({
     id: id("c", i), name, email: `${name.toLowerCase().replace(/[^a-z]+/g, ".").replace(/^\.|\.$/g, "")}@example.com`,

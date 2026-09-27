@@ -1,6 +1,7 @@
 import { bookingStore, RECEIPT_TTL, type BookingSession, type PaidReceipt, type StripeReceipt } from "./store";
 import { paymentMatches } from "./verification";
 import { currentBooking } from "./scheduler";
+import { logAssistantLifecycle } from "@/lib/assistant/auth";
 
 export type BookingRecord = BookingSession & { uid: string; state: string; start: string; end: string; stripePaymentIntentId?: string };
 // Called from either provider webhook. Browser redirects are never needed for fulfillment.
@@ -19,5 +20,9 @@ export async function reconcileBooking(uid: string) {
     !identityMatches || !paymentMatches(record, paid, payment) ? "needs_review" : booking.status === "accepted" ? "confirmed" : "paid_deposit";
   const updated = { ...record, state, start: booking.start, end: booking.end, stripePaymentIntentId: payment.id };
   await store.set(`booking:record:${uid}`, updated, { ex: RECEIPT_TTL });
+  if (state === "confirmed" && updated.assistantClientId && updated.assistantDraftId) {
+    const first = await store.set(`assistant:event:deposit-completed:${updated.reference}`, "1", { nx: true, ex: RECEIPT_TTL });
+    if (first) logAssistantLifecycle({ clientId: updated.assistantClientId, event: "deposit.completed", draftId: updated.assistantDraftId, ok: true });
+  }
   return updated;
 }

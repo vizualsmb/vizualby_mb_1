@@ -7,7 +7,7 @@ import { Header } from "./Header";
 import { CustomCursor } from "./CustomCursor";
 import { Footer } from "./Footer";
 import { SmoothScrollProvider } from "./SmoothScrollProvider";
-import { VideoReelRail } from "./VideoReelRail";
+import { MediaGrid } from "./MediaGrid";
 
 export function SocialMediaPage() {
   const items = socialMediaProjects.map((item) => ({
@@ -24,23 +24,15 @@ export function SocialMediaPage() {
       <Header />
       <CustomCursor />
       <main className="aftermovies-page" id="main-content">
-        <section className="aftermovies-hero format-stage" data-format="social-media">
-          <Link href="/#categories" className="aftermovies-back">
-            <ArrowLeft size={17} /> All formats
-          </Link>
-          <div className="format-stage-rail">
-            <VideoReelRail
-              items={items}
-              label="Select project"
-              category="Social media"
-              descriptor="Campaigns · promos · short form"
-            />
+        <section className="media-showcase">
+          <div className="media-showcase-bar">
+            <Link href="/#categories" className="aftermovies-back">
+              <ArrowLeft size={17} /> All formats
+            </Link>
+            <h1 className="media-showcase-mark">Social media</h1>
+            <p className="media-showcase-meta">{items.length} projects — made for the scroll</p>
           </div>
-          <div className="aftermovies-title">
-            <p>Campaigns / promos / short form</p>
-            <h1>Social media</h1>
-            <p>Made for the scroll.</p>
-          </div>
+          <MediaGrid items={items} />
         </section>
 
         <Link className="aftermovies-contact" href="/#contact">

@@ -4,7 +4,7 @@ import { boundedBody, validCalSignature } from "@/lib/booking/security";
 import { bookingStore, RECEIPT_TTL, type PaidReceipt, type BookingSession } from "@/lib/booking/store";
 import { reconcileBooking, type BookingRecord } from "@/lib/booking/reconcile";
 import { calEventTypeIds } from "@/lib/booking/config";
-import { syncBookingToAdmin } from "@/lib/admin/sync";
+import { sendBookingConfirmationSms, syncBookingToAdmin } from "@/lib/admin/sync";
 
 const eventSchema = z.object({
   triggerEvent: z.string(), createdAt: z.iso.datetime({ offset: true }),
@@ -13,7 +13,7 @@ const eventSchema = z.object({
     startTime: z.iso.datetime({ offset: true }), endTime: z.iso.datetime({ offset: true }),
     status: z.string(), attendees: z.array(z.object({ email: z.email() })),
     price: z.number().int().optional(), currency: z.string().optional(), paymentId: z.number().optional(),
-    metadata: z.object({ externalId: z.string().optional() }).passthrough().optional(),
+    metadata: z.object({ externalId: z.string().optional(), mbReference: z.string().optional() }).passthrough().optional(),
     additionalNotes: z.string().optional(), responses: z.object({ notes: z.object({ value: z.string().optional() }).optional() }).passthrough().optional(),
     rescheduleUid: z.string().regex(/^[\w-]{6,100}$/).optional(),
   }),
@@ -33,10 +33,13 @@ export async function POST(request: Request) {
     const store = bookingStore();
     const key = `booking:cal:${p.uid}`;
     const notes = p.additionalNotes || p.responses?.notes?.value || "";
-    const reference = notes.match(/^MB reference: ([a-f0-9-]{36})/m)?.[1];
+    // Prefer the hidden booking metadata; fall back to the reference line in the notes.
+    const reference = [p.metadata?.mbReference, notes.match(/^(?:MB reference|Ref): ([a-f0-9-]{36})$/m)?.[1]].find((r) => r && /^[a-f0-9-]{36}$/.test(r));
     const draft = reference ? await store.get<BookingSession>(`booking:draft:${reference}`) : null;
     if (draft && draft.eventTypeId === p.eventTypeId && p.attendees.some((a) => a.email.toLowerCase() === draft.intake.email)) {
       await store.set(`booking:record:${p.uid}`, { ...draft, uid: p.uid, state: "awaiting_payment", start: p.startTime, end: p.endTime }, { ex: RECEIPT_TTL, nx: true });
+      // Lets a reference-only caller (the assistant API's booking-status lookup) find this booking's uid.
+      await store.set(`booking:reference:${reference}`, p.uid, { ex: RECEIPT_TTL });
     }
     if (triggerEvent === "BOOKING_PAID") {
       if (p.price === undefined || !p.currency || !p.paymentId || !p.metadata?.externalId?.startsWith("pi_")) return new Response("Missing payment reference", { status: 422 });
@@ -51,7 +54,10 @@ export async function POST(request: Request) {
         await store.hsetnx(key, "paid", JSON.stringify(paid));
         await store.sadd(`booking:payment-bookings:${paid.stripePaymentIntentId}`, p.uid);
         const previous = await store.get<BookingRecord>(`booking:record:${p.rescheduleUid}`);
-        if (previous) await store.set(`booking:record:${p.uid}`, { ...previous, uid: p.uid, start: p.startTime, end: p.endTime }, { nx: true, ex: RECEIPT_TTL });
+        if (previous) {
+          await store.set(`booking:record:${p.uid}`, { ...previous, uid: p.uid, start: p.startTime, end: p.endTime }, { nx: true, ex: RECEIPT_TTL });
+          await store.set(`booking:reference:${previous.reference}`, p.uid, { ex: RECEIPT_TTL });
+        }
       }
       // Keep the old receipt as a pointer to the replacement, never as a second confirmed booking.
       await store.hset(`booking:cal:${p.rescheduleUid}`, { nextUid: p.uid });
@@ -61,9 +67,10 @@ export async function POST(request: Request) {
     await store.eval(`local previous = tonumber(redis.call('HGET', KEYS[1], 'timestamp') or '0')
       if tonumber(ARGV[1]) >= previous then redis.call('HSET', KEYS[1], 'timestamp', ARGV[1], 'lifecycle', ARGV[2]) end
       redis.call('EXPIRE', KEYS[1], ARGV[3]); return 1`, [key], [String(Date.parse(createdAt)), lifecycle, RECEIPT_TTL]);
-    await reconcileBooking(p.uid);
+    const reconciled = await reconcileBooking(p.uid);
     if (p.rescheduleUid) await reconcileBooking(p.rescheduleUid);
     await syncBookingToAdmin(p.uid);
+    if (reconciled?.state === "confirmed") await sendBookingConfirmationSms(p.uid);
     return NextResponse.json({ received: true });
   } catch { return new Response("Temporary storage failure", { status: 503 }); }
 }

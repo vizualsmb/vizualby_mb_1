@@ -7,7 +7,7 @@ import { Header } from "./Header";
 import { CustomCursor } from "./CustomCursor";
 import { Footer } from "./Footer";
 import { SmoothScrollProvider } from "./SmoothScrollProvider";
-import { VideoReelRail } from "./VideoReelRail";
+import { MediaGrid } from "./MediaGrid";
 
 export function AftermoviesPage() {
   const items = aftermovies.map((item) => ({
@@ -24,24 +24,15 @@ export function AftermoviesPage() {
       <Header />
       <CustomCursor />
       <main className="aftermovies-page" id="main-content">
-        <section className="aftermovies-hero format-stage" data-format="aftermovies">
-          <Link href="/#categories" className="aftermovies-back">
-            <ArrowLeft size={17} /> All formats
-          </Link>
-          <div className="format-stage-rail">
-            <VideoReelRail
-              items={items}
-              label="Select aftermovie"
-              category="Aftermovies"
-              descriptor="Live event · nightlife · culture"
-              initialIndex={1}
-            />
+        <section className="media-showcase">
+          <div className="media-showcase-bar">
+            <Link href="/#categories" className="aftermovies-back">
+              <ArrowLeft size={17} /> All formats
+            </Link>
+            <h1 className="media-showcase-mark">Aftermovies</h1>
+            <p className="media-showcase-meta">{items.length} films — full volume</p>
           </div>
-          <div className="aftermovies-title">
-            <p>Live events / nightlife / culture</p>
-            <h1>Aftermovies</h1>
-            <p>Six films. Full volume.</p>
-          </div>
+          <MediaGrid items={items} />
         </section>
 
         <Link className="aftermovies-contact" href="/#contact">

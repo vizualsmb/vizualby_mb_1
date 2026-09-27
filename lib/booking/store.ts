@@ -13,7 +13,7 @@ export function bookingStore() {
   if (!url || !token) throw new Error("Booking storage is not configured");
   return new Redis({ url, token });
 }
-export type BookingSession = { reference: string; packageName: string; intake: Intake; total: number; deposit: number; paymentOption?: "deposit" | "full"; dueNow?: number; balance: number; eventTypeId: number; policyVersion: string; acceptedAt: string };
+export type BookingSession = { reference: string; packageName: string; packageCategory?: string; packageMinutes?: number; intake: Intake; total: number; originalPrice?: number; packagePrice?: number; promotionId?: string; savings?: number; deposit: number; paymentOption?: "deposit" | "full"; dueNow?: number; balance: number; eventTypeId: number; policyVersion: string; acceptedAt: string; assistantClientId?: string; assistantDraftId?: string };
 export type PaidReceipt = { eventTypeId: number; emails: string[]; price: number; currency: string; paymentId: number; stripePaymentIntentId: string };
 export type Lifecycle = { state: string; start: string; end: string; updatedAt: string; nextUid?: string };
 export type StripeReceipt = { id: string; amount: number; currency: string; refunded: number; status: string; updatedAt: number };

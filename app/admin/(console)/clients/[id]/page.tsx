@@ -8,7 +8,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { BookingTable, projectName } from "@/components/admin/bookings";
 import { requireAdmin } from "@/lib/admin/auth";
 import { clientDetail } from "@/lib/admin/queries";
-import { updateClient } from "@/lib/admin/actions";
+import { removeClient, updateClient } from "@/lib/admin/actions";
 import { CLIENT_TYPES, PAYMENT_METHODS, PAYMENT_TYPES } from "@/lib/admin/labels";
 import { usd } from "@/lib/admin/money";
 import { formatDate, formatFullDate } from "@/lib/admin/time";
@@ -68,6 +68,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               <label className={`${s.field} ${s.fieldWide}`}>Client type<select className={s.input} name="client_type" defaultValue={c.client_type}>{Object.entries(CLIENT_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
               <label className={`${s.field} ${s.fieldWide}`}>Notes<textarea className={s.input} name="notes" defaultValue={c.notes ?? ""} maxLength={5000} /></label>
             </div>
+          </ActionForm>
+        </Card>
+        <Card title="Remove client">
+          <p className={s.secondaryText}>This hides the client from the directory while preserving their bookings, payments, and production history.</p>
+          <ActionForm action={removeClient} submit="Remove client" variant="danger" confirm={`Remove ${c.name} from the client directory? Their booking and payment history will be preserved.`}>
+            <input type="hidden" name="id" value={c.id} />
           </ActionForm>
         </Card>
       </div>

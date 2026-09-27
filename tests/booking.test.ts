@@ -6,10 +6,12 @@ import { quoteFor } from "../data/booking";
 import { intakeSchema } from "../lib/booking/schema";
 import { validCalSignature, boundedBody } from "../lib/booking/security";
 import { paymentMatches } from "../lib/booking/verification";
-import { studioStartTimes, withinStudioHours } from "../lib/booking/hours";
+import { blockIsFree, isStudioDayOff, bookedMinutesByDay, clearOfOtherShoots, fitsDailyLimit, studioBlockFor, studioStartTimes, withinStudioHours } from "../lib/booking/hours";
 import type { BookingSession, PaidReceipt, StripeReceipt } from "../lib/booking/store";
+import type { PublicPromotion } from "../lib/booking/promotions";
+import { syncCalPackage } from "../lib/booking/cal-sync";
 
-const intake = { packageId: "content-signature", addonIds: ["vertical-cut"], selectedSlot: "2026-10-08T13:00:00-04:00", paymentOption: "deposit" as const, name: "Jordan Client", email: "jordan@example.com", phone: "6175550100", company: "Studio", location: "Boston, MA", project: "A campaign for our business.", references: "", terms: true as const, website: "" as const };
+const intake = { packageId: "content-signature", addonIds: ["vertical-cut"], promoCode: "", selectedSlot: "2026-10-08T13:00:00-04:00", paymentOption: "deposit" as const, name: "Jordan Client", email: "jordan@example.com", phone: "6175550100", company: "Studio", location: "Boston, MA", project: "A campaign for our business.", references: "", terms: true as const, website: "" as const };
 test("quotes use trusted integer cents and reject unknown/duplicate options", () => {
   const q = quoteFor(intake.packageId, intake.addonIds); assert.equal(q.total, 97500); assert.equal(q.deposit, 42500); assert.equal(q.balance, 55000);
   assert.throws(() => quoteFor("cheap-forged-package", []));
@@ -74,12 +76,63 @@ test("clients can pay the deposit or the full price", () => {
   const { location: _, ...noLocation } = intake; void _;
   assert.equal(intakeSchema.safeParse(noLocation).success, true);
 });
+test("deals recalculate the package deposit from the trusted discounted price", () => {
+  const deal: PublicPromotion = { id: "a3f6491f-fd05-4e8d-b2ed-b87bc9d4a2be", packageId: "music-full-concept", originalPrice: 150000, discountedPrice: 120000, discountType: "flat", label: "LIMITED OFFER", startsOn: "2026-09-01", endsOn: "2026-10-15", bookingDeadline: null, limitedQuantity: 3, remainingQuantity: 3, requiresCode: false, valueNote: "+ 2 vertical social edits included" };
+  const quote = quoteFor("music-full-concept", [], "deposit", deal);
+  assert.equal(quote.originalPrice, 150000); assert.equal(quote.packagePrice, 120000); assert.equal(quote.savings, 30000);
+  assert.equal(quote.deposit, 60000); assert.equal(quote.dueNow, 60000); assert.equal(quote.balance, 60000);
+  assert.throws(() => quoteFor("music-run-and-gun", [], "deposit", deal));
+});
+test("admin-managed packages use their own server-side price and deposit percentage", () => {
+  const managed = { ...quoteFor("music-run-and-gun", []).pkg, id: "music-performance", name: "Performance Visual", price: 120000, deposit: 36000, depositPercent: 30 };
+  const quote = quoteFor(managed.id, [], "deposit", null, [managed]);
+  assert.equal(quote.total, 120000); assert.equal(quote.deposit, 36000); assert.equal(quote.balance, 84000);
+  assert.throws(() => quoteFor("music-run-and-gun", [], "deposit", null, [managed]));
+});
+test("admin package sync writes trusted deposit cents to Cal and verifies the result", async () => {
+  const priorKey = process.env.CAL_API_KEY;
+  const priorFetch = globalThis.fetch;
+  process.env.CAL_API_KEY = "cal_test_key";
+  let state = {
+    title: "Old package",
+    lengthInMinutes: 60,
+    bookingUrl: "https://cal.com/vizual/booking-test",
+    metadata: { apps: { stripe: { enabled: true, paymentOption: "ON_BOOKING", price: 100, currency: "usd", refundPolicy: "NEVER" } } },
+  };
+  const requests: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input); requests.push({ url, init });
+    if (init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body));
+      state = { ...state, title: body.title, lengthInMinutes: body.length, metadata: body.metadata };
+      return Response.json({ status: "success", data: state });
+    }
+    return Response.json({ status: "success", data: state });
+  };
+  try {
+    await syncCalPackage({
+      deposit: { event: { eventTypeId: 123, calLink: "vizual/booking-test" }, price: 36000, title: "Performance Visual — Deposit" },
+      minutes: 240,
+    });
+    assert.equal(state.title, "Performance Visual — Deposit");
+    assert.equal(state.lengthInMinutes, 240);
+    assert.equal(state.metadata.apps.stripe.price, 36000);
+    assert.equal(state.metadata.apps.stripe.refundPolicy, "NEVER");
+    assert.equal(requests.filter((request) => request.init?.method === "PATCH").length, 1);
+    assert.equal(requests.at(-1)?.url, "https://api.cal.com/v2/event-types/123");
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorKey === undefined) delete process.env.CAL_API_KEY; else process.env.CAL_API_KEY = priorKey;
+  }
+});
 test("actual request body limits apply even without Content-Length", async () => {
   assert.equal(await boundedBody(new Request("http://localhost", { method: "POST", body: "ok" }), 2), "ok");
   await assert.rejects(() => boundedBody(new Request("http://localhost", { method: "POST", body: "too large" }), 2));
 });
-test("shoots must start at or after 6 AM and finish by midnight New York time", () => {
-  assert.equal(withinStudioHours("2026-10-08T06:00:00-04:00", 180), true);
+test("shoots must start at or after 8 AM and finish by midnight New York time", () => {
+  assert.equal(withinStudioHours("2026-10-08T08:00:00-04:00", 180), true);
+  assert.equal(withinStudioHours("2026-10-08T07:30:00-04:00", 180), false);
+  assert.equal(withinStudioHours("2026-10-08T06:00:00-04:00", 180), false);
   assert.equal(withinStudioHours("2026-10-08T05:30:00-04:00", 180), false);
   assert.equal(withinStudioHours("2026-10-08T21:00:00-04:00", 180), true);
   assert.equal(withinStudioHours("2026-10-08T21:15:00-04:00", 180), false);
@@ -88,6 +141,59 @@ test("shoots must start at or after 6 AM and finish by midnight New York time", 
   assert.equal(withinStudioHours("2026-12-08T18:30:00-05:00", 360), false);
   assert.equal(withinStudioHours("not a date", 60), false);
   const starts = studioStartTimes("2026-12-08", 240).map((s) => s.start);
-  assert.equal(starts[0], "2026-12-08T06:00:00-05:00"); assert.equal(starts.at(-1), "2026-12-08T20:00:00-05:00");
+  assert.equal(starts[0], "2026-12-08T08:00:00-05:00"); assert.equal(starts.at(-1), "2026-12-08T20:00:00-05:00");
   assert.ok(starts.every((s) => withinStudioHours(s, 240)));
+});
+test("no more than 8 hours of shooting can be booked on one day", () => {
+  const booked = bookedMinutesByDay([
+    { start: "2026-10-02T14:00:00Z", end: "2026-10-02T18:00:00Z" }, // Creative, 10 AM–2 PM EDT
+    { start: "2026-10-02T20:00:00Z", end: "2026-10-02T22:00:00Z" }, // Run & Gun, 4–6 PM EDT
+    { start: "2026-10-03T02:00:00Z", end: "2026-10-03T03:00:00Z" }, // 10 PM EDT on Oct 2, not Oct 3
+    { start: "bad", end: "2026-10-04T00:00:00Z" },
+  ]);
+  assert.deepEqual(booked, { "2026-10-02": 420 });
+  assert.equal(fitsDailyLimit(booked["2026-10-02"], 60), true);
+  assert.equal(fitsDailyLimit(booked["2026-10-02"], 120), false);
+  assert.equal(fitsDailyLimit(0, 360), true);
+  assert.equal(fitsDailyLimit(240, 240), true);
+  assert.equal(fitsDailyLimit(360, 240), false);
+});
+test("shoots keep at least a 2-hour break from other shoots", () => {
+  const booked = [{ start: "2026-10-02T12:00:00-04:00", end: "2026-10-02T14:00:00-04:00" }]; // 12–2 PM
+  assert.equal(clearOfOtherShoots("2026-10-02T16:00:00-04:00", 120, booked), true); // starts 2h after
+  assert.equal(clearOfOtherShoots("2026-10-02T15:30:00-04:00", 120, booked), false); // only 1.5h after
+  assert.equal(clearOfOtherShoots("2026-10-02T08:00:00-04:00", 120, booked), true); // ends 10 AM, 2h before
+  assert.equal(clearOfOtherShoots("2026-10-02T08:30:00-04:00", 120, booked), false); // ends 10:30, too close
+  assert.equal(clearOfOtherShoots("2026-10-02T13:00:00-04:00", 120, booked), false); // overlaps
+  assert.equal(clearOfOtherShoots("2026-10-02T08:00:00-04:00", 120, []), true);
+});
+test("one shoot per morning, afternoon or night block", () => {
+  assert.equal(studioBlockFor("2026-10-02T08:00:00-04:00", 240)?.name, "Morning");
+  assert.equal(studioBlockFor("2026-10-02T11:00:00-04:00", 120), undefined); // would cross into the afternoon
+  assert.equal(studioBlockFor("2026-10-02T12:00:00-04:00", 360)?.name, "Afternoon");
+  assert.equal(studioBlockFor("2026-10-02T08:00:00-04:00", 360), undefined); // Full Concept doesn't fit the morning
+  assert.equal(studioBlockFor("2026-10-02T22:00:00-04:00", 120)?.name, "Night");
+  const morning = [{ start: "2026-10-02T08:00:00-04:00", end: "2026-10-02T10:00:00-04:00" }];
+  assert.equal(blockIsFree("2026-10-02T10:00:00-04:00", 120, morning), false); // morning already taken
+  assert.equal(blockIsFree("2026-10-02T14:00:00-04:00", 120, morning), true);
+  assert.equal(blockIsFree("2026-10-02T18:00:00-04:00", 120, morning), true);
+  assert.equal(blockIsFree("2026-10-03T08:00:00-04:00", 120, morning), true); // other day
+  const night = [{ start: "2026-10-02T23:00:00-04:00", end: "2026-10-03T00:00:00-04:00" }]; // ends at midnight
+  assert.equal(blockIsFree("2026-10-02T18:00:00-04:00", 120, night), false);
+  assert.equal(blockIsFree("2026-10-03T08:00:00-04:00", 120, night), true);
+  const starts = studioStartTimes("2026-10-02", 120).map((s) => s.start.slice(11, 16));
+  assert.deepEqual(starts, ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"]);
+});
+test("shoot days alternate between a 3-day and a 4-day week", () => {
+  const open = (days: string[]) => days.filter((d) => !isStudioDayOff(d));
+  // 3-day week of Sep 21: Tue, Wed, Sat
+  assert.deepEqual(open(["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"]), ["2026-09-22", "2026-09-23", "2026-09-26"]);
+  // 4-day week of Sep 28: Mon, Wed, Thu, Fri
+  assert.deepEqual(open(["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"]), ["2026-09-28", "2026-09-30", "2026-10-01", "2026-10-02"]);
+  // and back again, across month, year and daylight-saving changes
+  assert.deepEqual(open(["2026-10-05", "2026-10-06", "2026-10-10"]), ["2026-10-06", "2026-10-10"]);
+  assert.equal(isStudioDayOff("2026-11-02"), true); // Monday after DST ends: 3-day week, off
+  assert.equal(isStudioDayOff("2026-11-03"), false); // Tuesday, 3-day week
+  assert.equal(isStudioDayOff("2027-01-04"), false); // Monday, 4-day week
+  assert.equal(isStudioDayOff("2027-01-05"), true); // Tuesday, 4-day week
 });

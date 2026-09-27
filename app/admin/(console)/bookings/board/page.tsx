@@ -12,12 +12,11 @@ import { formatShortDate } from "@/lib/admin/time";
 
 export const metadata: Metadata = { title: "Board" };
 
-// Fifteen statuses fold into five lanes so the board fits a screen without sideways scrolling.
+// Payment state is shown on each card, keeping the workflow itself focused.
 const LANES = [
-  ["Leads", ["new_inquiry", "deposit_pending"]],
-  ["Booked", ["deposit_paid", "confirmed", "pre_production", "shoot_scheduled"]],
-  ["In post", ["shoot_completed", "editing", "client_review", "revision"]],
-  ["Closing", ["final_payment_due", "paid"]],
+  ["Confirmed", ["new_inquiry", "deposit_pending", "deposit_paid", "confirmed", "pre_production", "shoot_scheduled"]],
+  ["Editing", ["shoot_completed", "editing"]],
+  ["Review / Revision", ["client_review", "revision", "final_payment_due", "paid"]],
   ["Delivered", ["delivered"]],
 ] as const;
 const ACTIVE = LANES.flatMap(([, statuses]) => [...statuses]);
@@ -31,7 +30,7 @@ export default async function BoardPage() {
   const rows = (data ?? []) as unknown as LedgerRow[];
 
   return <>
-    <PageHeader eyebrow="Pipeline" title="Board" subtitle="Every active project by stage. Change a card's status to move it.">
+    <PageHeader eyebrow="Pipeline" title="Board" subtitle="Confirmed → Editing → Review / Revision → Delivered. Payment badges update automatically.">
       <Link href="/admin/bookings" className={`${s.button} ${s.buttonGhost}`}><List size={16} aria-hidden />List view</Link>
     </PageHeader>
     <div className={s.board}>
@@ -44,7 +43,7 @@ export default async function BoardPage() {
             <Link href={`/admin/bookings/${b.id}`} className={s.rowLink} style={{ overflowWrap: "anywhere" }}>{b.client_name}</Link>
             <span className={s.secondaryText}>{projectName(b)}</span>
             <span className={s.mobileCardRow}><span className={s.metaText}>{b.shoot_start ? formatShortDate(b.shoot_start) : "No date"}</span>{b.balance_cents > 0 && <span className={s.metaText}>{usd(b.balance_cents)} due</span>}</span>
-            {["overdue", "unpaid"].includes(b.payment_state) && <PaymentBadge state={b.payment_state} />}
+            <PaymentBadge state={b.payment_state} />
             <StatusSelect id={b.id} status={b.status} />
           </article>)}
         </section>;

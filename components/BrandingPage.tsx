@@ -7,7 +7,7 @@ import { Header } from "./Header";
 import { CustomCursor } from "./CustomCursor";
 import { Footer } from "./Footer";
 import { SmoothScrollProvider } from "./SmoothScrollProvider";
-import { VideoReelRail } from "./VideoReelRail";
+import { MediaGrid } from "./MediaGrid";
 
 export function BrandingPage() {
   const items = brandingProjects.map((item) => ({
@@ -24,23 +24,15 @@ export function BrandingPage() {
       <Header />
       <CustomCursor />
       <main className="aftermovies-page" id="main-content">
-        <section className="aftermovies-hero format-stage" data-format="branding">
-          <Link href="/#categories" className="aftermovies-back">
-            <ArrowLeft size={17} /> All formats
-          </Link>
-          <div className="format-stage-rail">
-            <VideoReelRail
-              items={items}
-              label="Select branding project"
-              category="Branding"
-              descriptor="Identity · campaign · product"
-            />
+        <section className="media-showcase">
+          <div className="media-showcase-bar">
+            <Link href="/#categories" className="aftermovies-back">
+              <ArrowLeft size={17} /> All formats
+            </Link>
+            <h1 className="media-showcase-mark">Branding</h1>
+            <p className="media-showcase-meta">{items.length} projects — identity in motion</p>
           </div>
-          <div className="aftermovies-title">
-            <p>Identity / campaign / product</p>
-            <h1>Branding</h1>
-            <p>Stories with a point of view.</p>
-          </div>
+          <MediaGrid items={items} />
         </section>
 
         <Link className="aftermovies-contact" href="/#contact">

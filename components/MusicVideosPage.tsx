@@ -7,7 +7,7 @@ import { Header } from "./Header";
 import { CustomCursor } from "./CustomCursor";
 import { Footer } from "./Footer";
 import { SmoothScrollProvider } from "./SmoothScrollProvider";
-import { VideoReelRail } from "./VideoReelRail";
+import { MediaGrid } from "./MediaGrid";
 
 export function MusicVideosPage() {
   const items = musicVideos.map((item) => ({
@@ -26,23 +26,15 @@ export function MusicVideosPage() {
       <Header />
       <CustomCursor />
       <main className="aftermovies-page" id="main-content">
-        <section className="aftermovies-hero format-stage" data-format="music-videos">
-          <Link href="/#categories" className="aftermovies-back">
-            <ArrowLeft size={17} /> All formats
-          </Link>
-          <div className="format-stage-rail">
-            <VideoReelRail
-              items={items}
-              label="Select music video"
-              category="Music videos"
-              descriptor="Performance · culture · visual worlds"
-            />
+        <section className="media-showcase">
+          <div className="media-showcase-bar">
+            <Link href="/#categories" className="aftermovies-back">
+              <ArrowLeft size={17} /> All formats
+            </Link>
+            <h1 className="media-showcase-mark">Music videos</h1>
+            <p className="media-showcase-meta">{items.length} film{items.length === 1 ? "" : "s"} — full volume</p>
           </div>
-          <div className="aftermovies-title">
-            <p>Performance / culture / visual worlds</p>
-            <h1>Music videos</h1>
-            <p>{musicVideos.length.toString().padStart(2, "0")} film</p>
-          </div>
+          <MediaGrid items={items} />
         </section>
 
         <Link className="aftermovies-contact" href="/#contact">

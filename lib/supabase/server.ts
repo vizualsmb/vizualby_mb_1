@@ -9,6 +9,7 @@ export async function createSupabaseServer() {
   if (!env) throw new Error("Supabase is not configured");
   const cookieStore = await cookies();
   return createServerClient(env.url, env.publishableKey, {
+    db: { schema: "studio_admin" },
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll(toSet) {

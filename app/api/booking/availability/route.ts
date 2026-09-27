@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { bookingPackages } from "@/data/booking";
+import { catalogPackages } from "@/lib/booking/catalog.server";
 import { bookingEnabled, calEvents } from "@/lib/booking/config";
 import { availableSlots } from "@/lib/booking/scheduler";
 import { bookingStore } from "@/lib/booking/store";
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const month = request.nextUrl.searchParams.get("month") || "";
   const packageId = request.nextUrl.searchParams.get("packageId") || "";
   const event = calEvents()[packageId];
-  const pkg = bookingPackages.find((item) => item.id === packageId);
+  const pkg = (await catalogPackages()).find((item) => item.id === packageId);
   if (!event || !pkg || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return NextResponse.json({ error: "Invalid schedule request." }, { status: 400, headers });
   const start = new Date(`${month}-01T00:00:00Z`);
   const now = new Date();

@@ -1,17 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUp, Instagram, Youtube } from "lucide-react";
+import { ArrowUp, Instagram, Mail, Youtube } from "lucide-react";
 import { site } from "@/data/site";
 
 const socialIcons = { instagram: Instagram, youtube: Youtube };
-
-const explore = [
-  { label: "Music Videos", href: "/music-videos" },
-  { label: "Aftermovies", href: "/aftermovies" },
-  { label: "Social Media", href: "/social-media" },
-  { label: "Branding", href: "/branding" },
-  { label: "Short Films", href: "/short-films" },
-];
 
 export function Footer() {
   return (
@@ -24,12 +16,11 @@ export function Footer() {
       </div>
       <div className="footer-cols">
         <div>
-          <h2>Contact</h2>
-          <a href={`mailto:${site.email}`}>{site.email}</a>
-        </div>
-        <div>
-          <h2>Follow</h2>
+          <h2>Connect</h2>
           <div className="footer-social-icons">
+            <a href={`mailto:${site.email}`} aria-label="Email">
+              <Mail size={19} strokeWidth={1.5} aria-hidden="true" />
+            </a>
             {site.socials.map((social) => {
               const Icon = socialIcons[social.platform];
               return (
@@ -39,10 +30,6 @@ export function Footer() {
               );
             })}
           </div>
-        </div>
-        <div>
-          <h2>Explore</h2>
-          <div className="footer-explore">{explore.map((item) => <Link key={item.href} href={item.href}>{item.label}</Link>)}</div>
         </div>
       </div>
       <div className="footer-bottom">

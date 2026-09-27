@@ -1,18 +1,21 @@
 // Display labels for database enums. Order matters: it is the pipeline order.
 export const BOOKING_STATUSES = [
-  ["new_inquiry", "New inquiry"], ["deposit_pending", "Deposit pending"], ["deposit_paid", "Deposit paid"],
+  ["new_inquiry", "New inquiry"], ["deposit_pending", "Deposit pending"], ["deposit_paid", "Deposit"],
   ["confirmed", "Confirmed"], ["pre_production", "Pre-production"], ["shoot_scheduled", "Shoot scheduled"],
-  ["shoot_completed", "Shoot completed"], ["editing", "Editing"], ["client_review", "Client review"],
-  ["revision", "Revision"], ["final_payment_due", "Final payment due"], ["paid", "Paid"],
+  ["shoot_completed", "Shoot completed"], ["editing", "Editing"], ["client_review", "Review / Revision"],
+  ["revision", "Review / Revision"], ["final_payment_due", "Final payment due"], ["paid", "Paid"],
   ["delivered", "Delivered"], ["archived", "Archived"], ["canceled", "Canceled"],
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number][0];
 
 export const PAYMENT_STATES = {
-  unpaid: "Unpaid", partially_paid: "Partially paid", deposit_paid: "Deposit paid", paid: "Paid in full",
+  unpaid: "Unpaid", partially_paid: "Partially paid", deposit_paid: "Deposit", paid: "Paid in full",
   overdue: "Overdue", refunded: "Refunded", canceled: "Canceled",
 } as const;
 export type PaymentState = keyof typeof PAYMENT_STATES;
+export const BOARD_STATUSES = [
+  ["confirmed", "Confirmed"], ["editing", "Editing"], ["client_review", "Review / Revision"], ["delivered", "Delivered"],
+] as const;
 
 export const PAYMENT_STATUSES = { pending: "Pending", succeeded: "Paid", failed: "Failed", refunded: "Refunded", partially_refunded: "Partially refunded" } as const;
 export type PaymentStatus = keyof typeof PAYMENT_STATUSES;

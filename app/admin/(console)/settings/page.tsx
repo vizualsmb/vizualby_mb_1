@@ -3,7 +3,7 @@ import s from "@/components/admin/admin.module.css";
 import { Card, PageHeader } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { requireAdmin } from "@/lib/admin/auth";
-import { runAutomationNow, updateSettings } from "@/lib/admin/actions";
+import { runAutomationNow, syncExistingBookings, updateSettings } from "@/lib/admin/actions";
 import { bookingEnabled, calEvents } from "@/lib/booking/config";
 import { formatDate } from "@/lib/admin/time";
 
@@ -64,6 +64,9 @@ export default async function SettingsPage() {
           <span className={s.mobileCardRow}><b>{name}</b><span className={`${s.badge} ${ok ? s.toneGood : s.toneWarn}`}>{ok ? "Connected" : "Not configured"}</span></span>
           <span className={s.metaText}>{note}</span>
         </li>)}</ul>
+        <div style={{ marginTop: 18 }}>
+          <ActionForm action={syncExistingBookings} submit="Sync existing website bookings" variant="ghost"><p className={s.hint}>Imports bookings already stored by the live website. Safe to repeat: clients, bookings and Stripe payments are upserted instead of duplicated.</p></ActionForm>
+        </div>
         <div style={{ marginTop: 18 }}>
           <ActionForm action={runAutomationNow} submit="Run daily automation now" variant="ghost"><p className={s.hint}>Runs the same job as the morning schedule. Safe to repeat: nothing is sent twice.</p></ActionForm>
         </div>

@@ -7,5 +7,10 @@ export function createSupabaseService() {
   const env = supabaseEnv();
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!env || !secret) return null;
-  return createClient(env.url, secret, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(env.url, secret, {
+    db: { schema: "studio_admin" },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
+
+export type AdminSupabaseClient = NonNullable<ReturnType<typeof createSupabaseService>>;

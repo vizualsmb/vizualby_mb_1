@@ -1,11 +1,14 @@
 import { musicPackages } from "./music-booking";
+import type { PublicPromotion } from "@/lib/booking/promotions";
 // Music pricing is owner-supplied. Other categories remain sample catalog entries.
 export type BookingCategory = "content" | "music" | "brand" | "events" | "estate" | "custom";
 export const bookingCategories: { id: BookingCategory; label: string; number: string; description: string }[] = [
   { id: "content", label: "Short-form content", number: "01", description: "Aftermovies, concerts, live events, workouts, and social campaigns." },
   { id: "music", label: "Music videos", number: "02", description: "A visual world for your sound." },
   { id: "brand", label: "Brand content", number: "03", description: "For businesses, clothing brands, products, and campaigns." },
-  { id: "custom", label: "Custom production", number: "04", description: "Something that doesn’t fit a package." },
+  { id: "events", label: "Event coverage", number: "04", description: "Cinematic coverage for the moments people came to feel." },
+  { id: "estate", label: "Real estate", number: "05", description: "Property films designed to make a listing memorable." },
+  { id: "custom", label: "Custom production", number: "06", description: "Something that doesn’t fit a package." },
 ];
 export type BookingPackage = {
   id: string; category: BookingCategory; name: string; tagline: string; price: number;
@@ -13,12 +16,13 @@ export type BookingPackage = {
   delivery: string; includes: string[]; featured?: boolean;
   fullDescription?: string; image?: string; inquiryOnly?: boolean;
   bestFor?: string; locationLabel?: string; startingPrice?: boolean;
+  depositPercent?: number;
   addonIds?: string[]; calEventKey?: string; stripeProductId?: string;
 };
 export type PackageDefinition = Omit<BookingPackage, "deposit">;
 // The deposit is always half the package price (rounded to the cent).
 export const DEPOSIT_SHARE = 0.5;
-export const depositFor = (price: number) => Math.round(price * DEPOSIT_SHARE);
+export const depositFor = (price: number, percent = DEPOSIT_SHARE * 100) => Math.round(price * percent / 100);
 // All monetary values are integer USD cents.
 const packageDefinitions: PackageDefinition[] = [
   { id: "content-basic", category: "content", name: "The Basic", tagline: "A simple start for consistent social content.", price: 20000, minutes: 60, locations: 1, revisions: 1, delivery: "7–10 business days", includes: ["1 edited vertical video", "Color grading", "Social-ready 9:16 delivery"] },
@@ -41,6 +45,11 @@ export const bookingAddons = [
   { id: "extra-revision", name: "Extra revision round", description: "One additional round of consolidated edit feedback.", price: 10000 },
   { id: "music-concept", name: "Script / concept development", description: "Develop the script or concept for your music video.", price: 7500 },
 ];
+export function eligibleAddonsFor(pkg: BookingPackage) {
+  if (pkg.addonIds) return bookingAddons.filter((addon) => pkg.addonIds!.includes(addon.id));
+  if (pkg.category === "music") return [];
+  return bookingAddons.filter((addon) => !addon.id.startsWith("music-"));
+}
 // Every package asks the same details question.
 export const projectQuestion = { label: "Tell us about your project and vision", placeholder: "The idea, mood, references or links, and anything we should know about the shoot." };
 export const categoryImages: Record<BookingCategory, string> = { content: "/images/social-media/andy-promo.webp", music: "/images/medomina-1.webp", brand: "/images/branding/blind.webp", events: "/images/aftermovies/saii-2.webp", estate: "/images/about/directing-bts.webp", custom: "/images/about/directing-bts.webp" };
@@ -49,12 +58,17 @@ export function money(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: exact ? 2 : 0, maximumFractionDigits: exact ? 2 : 0 }).format(cents / 100);
 }
 export type PaymentOption = "deposit" | "full";
-export function quoteFor(packageId: string, addonIds: string[], paymentOption: PaymentOption = "deposit") {
-  const pkg = bookingPackages.find((item) => item.id === packageId);
-  if (!pkg || pkg.inquiryOnly || new Set(addonIds).size !== addonIds.length || addonIds.some((id) => !bookingAddons.some((item) => item.id === id) || (pkg.addonIds ? !pkg.addonIds.includes(id) : id.startsWith("music-")))) throw new Error("Choose a valid package and add-ons.");
-  const addons = bookingAddons.filter((item) => addonIds.includes(item.id));
-  const total = pkg.price + addons.reduce((sum, item) => sum + item.price, 0);
+export function quoteFor(packageId: string, addonIds: string[], paymentOption: PaymentOption = "deposit", promotion?: PublicPromotion | null, packages = bookingPackages) {
+  const pkg = packages.find((item) => item.id === packageId);
+  const eligible = pkg ? eligibleAddonsFor(pkg) : [];
+  if (!pkg || pkg.inquiryOnly || new Set(addonIds).size !== addonIds.length || addonIds.some((id) => !eligible.some((item) => item.id === id))) throw new Error("Choose a valid package and add-ons.");
+  const addons = eligible.filter((item) => addonIds.includes(item.id));
+  if (promotion && (promotion.packageId !== pkg.id || promotion.discountedPrice <= 0 || promotion.discountedPrice >= promotion.originalPrice)) throw new Error("Choose a valid package and add-ons.");
+  const packagePrice = promotion?.discountedPrice ?? pkg.price;
+  const originalPrice = promotion?.originalPrice ?? pkg.price;
+  const deposit = depositFor(packagePrice, pkg.depositPercent ?? DEPOSIT_SHARE * 100);
+  const total = packagePrice + addons.reduce((sum, item) => sum + item.price, 0);
   // dueNow is what Cal charges at booking: the fixed deposit, or everything when paying in full.
-  const dueNow = paymentOption === "full" ? total : pkg.deposit;
-  return { pkg, addons, total, deposit: pkg.deposit, paymentOption, dueNow, balance: total - dueNow };
+  const dueNow = paymentOption === "full" ? total : deposit;
+  return { pkg, addons, total, originalPrice, packagePrice, savings: originalPrice - packagePrice, promotion: promotion ?? null, deposit, paymentOption, dueNow, balance: total - dueNow };
 }

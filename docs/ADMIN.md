@@ -44,7 +44,7 @@ It is carefully built: raw-body signatures, monotonic refund handling, replay-sa
 **Potential issues found.**
 - `intakeSchema.referral` existed but the booking form never asked it. **Fixed:** the intake step now has an optional "How did you find us?" question, which feeds lead-source analytics.
 - There was no git history. **Fixed:** git is initialised with a baseline commit.
-- The browser tests in `tests/browser/booking.spec.ts` are out of date: they look for a "LET'S MAKE" heading and category names ("Brand films", "Event coverage") that the current booking UI no longer has, so they fail before reaching the form. This predates the admin work.
+- The browser suite has been updated to follow the current production/category/package flow, including add-ons and the complete preview checkout journey at seven responsive widths.
 
 **Recommendation.**
 - **Stay:** the whole booking and payment flow, the Redis reconciliation, and `data/booking.ts` as the catalog for now. Its prices must match the Cal event deposits, and the session route checks this on the server.
@@ -83,6 +83,8 @@ Migration: `supabase/migrations/20260924000000_admin_foundation.sql`. It was val
 | `booking_events` | The booking timeline. Status changes and payment events are **written by triggers**, so the timeline cannot drift from the data. Admin notes are added here too. |
 | `business_settings` | A single row. |
 | `audit_logs` | Records sensitive admin actions: refunds, deletions and settings changes. |
+
+All Studio OS database objects live in the dedicated `studio_admin` schema so they do not collide with pre-existing tables in this shared Supabase project.
 
 **Views** (`security_invoker`, so the caller's RLS applies):
 - `booking_ledger` joins each booking with its client and adds `paid_cents`, `refunded_cents`, `balance_cents`, `due_date` and `payment_state`. Payment state is one of unpaid, partially paid, deposit paid, paid, overdue, refunded or canceled.
@@ -210,10 +212,10 @@ A dashed banner on every page shows that login is bypassed. The bypass requires 
    - Add redirect URL `https://admin.vizualbymb.com/admin/auth/confirm`, plus `http://localhost:3000/admin/auth/confirm` for local development.
 6. **Authentication → Emails → Magic Link** template: include the code as well as the link, for example `Your code: {{ .Token }}` and `<a href="{{ .ConfirmationURL }}">Sign in</a>`.
 7. For production email delivery, set up custom SMTP (for example, Resend, which you already use). Supabase's built-in sender is heavily rate-limited.
-8. Run `supabase/migrations/20260925000000_automation.sql` too (step 2 covers the first file).
+8. Run the remaining migrations in timestamp order: `20260925000000_automation.sql`, `20260926000000_promotions.sql`, `20260927000000_service_packages.sql`, `20260928000000_assistant_requests.sql`, and `20260929000000_assistant_attribution.sql` (step 2 covers the first file).
 9. **Project Settings → API**: copy the URL, the publishable key and the secret key into Vercel environment variables (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`) and into `.env.local`.
 10. In Vercel → Domains, add `admin.vizualbymb.com` and create the DNS record Vercel shows you.
-11. Deploy. Existing webhooks start filling the admin database with new bookings from then on. Bookings made before setup are not backfilled; add any active ones with **New booking**.
+11. Deploy. Existing webhooks start filling the admin database with new bookings from then on. In **Settings**, use **Sync existing website bookings** once to import retained Redis records from before setup; the operation is idempotent and safe to repeat.
 
 ## 12. Phases and what is left
 
@@ -225,7 +227,22 @@ A dashed banner on every page shows that login is bypassed. The bypass requires 
 | 4 Analytics: packages, lead sources, client value, trends | **Built**, including the booking-form lead-source question |
 | 5 Automation: reminders, email, status rules, balance payments | **Built**, see below. Pushing manual bookings to Google Calendar is not built yet |
 | Kanban board | **Built** at `/admin/bookings/board` |
-| Editable packages that feed the booking site | **Not built.** Each package price must match its Cal.com event deposit, which the session route checks on every checkout. Moving the catalog into the database needs an admin screen that also updates or validates the Cal event, so a price edit can never break live checkout. |
+| Package promotions | **Built** in Services; each enabled deal must match its Cal.com event deposit/full price. |
+| Editable package catalog | **Built** in Services. Code packages are safe defaults; database rows override them, and new rows add packages. |
+
+## Package catalog
+
+Run `supabase/migrations/20260927000000_service_packages.sql`, then use **Admin → Services** to create or edit packages. Owners can control category, name, price, package-specific deposit percentage, duration, locations, revisions, delivery estimate, included items, display order, featured treatment, starting-price wording, inquiry-only behavior, and whether the package is published.
+
+Unpublishing archives a package from the customer catalog without deleting historical bookings. Existing code-defined packages remain safe defaults until their first admin edit. A new package without a `CAL_BOOKING_EVENTS` mapping appears as a request-only package; this prevents an unverified amount from reaching checkout. Once its Cal.com event is mapped, the server validates its amount and duration against the admin-managed package on every checkout.
+
+## Package deals
+
+Run `supabase/migrations/20260926000000_promotions.sql`, then open **Admin → Services**. A deal can be enabled or disabled and can set its package, original and discounted prices, flat/percentage savings display, dates, booking deadline, real quantity limit, premium label, added-value message, and optional package code. The editor includes a customer-facing preview.
+
+Only active, in-date offers with remaining quantity are sent to the booking page. Promo codes are never included in that public data. On the final Continue action, the server loads the offer again, verifies its dates, quantity and code, calculates the discounted total and deposit, and then verifies that Cal.com is configured for that exact amount. If the deal ended while the client was filling the form, checkout stops with a clear no-charge message.
+
+Before enabling a deal, set the package's Cal.com event to the discounted deposit amount (50% of the deal price). If pay-in-full is offered, its separate Cal.com event must match the full discounted total as well.
 
 ## 12a. Automation (Phase 5)
 

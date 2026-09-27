@@ -17,7 +17,7 @@ export function Confirmation() {
   const previewReceipt = useMemo((): Receipt | null => {
     if (!preview || !savedPreview) return null;
     try {
-      const saved = JSON.parse(savedPreview); const quote = quoteFor(saved.packageId, saved.addonIds, saved.paymentOption === "full" ? "full" : "deposit");
+      const saved = JSON.parse(savedPreview); const quote = quoteFor(saved.packageId, saved.addonIds, saved.paymentOption === "full" ? "full" : "deposit", saved.promotion, saved.package ? [saved.package] : undefined);
       const start = new Date(saved.slot);
       return { state: "preview", uid: "PREVIEW — NOT A RESERVATION", name: saved.name, packageName: quote.pkg.name, total: quote.total, paymentOption: quote.paymentOption, paid: quote.dueNow, balance: quote.balance, start: start.toISOString(), end: new Date(start.getTime() + quote.pkg.minutes * 60000).toISOString() };
     } catch { return null; }

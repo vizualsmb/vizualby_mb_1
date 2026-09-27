@@ -15,6 +15,7 @@ import { BOOKING_STATUSES, EXPENSE_CATEGORIES, LEAD_SOURCES, PAYMENT_METHODS, PA
 import { usd } from "@/lib/admin/money";
 import { formatDate, formatDay, formatFullDate, formatTime, nyDay, nyTimeInput } from "@/lib/admin/time";
 import { collectedCents } from "@/lib/admin/finance";
+import { createProjectFromBooking } from "@/lib/admin/production-actions";
 
 export const metadata: Metadata = { title: "Booking" };
 
@@ -129,6 +130,11 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
               {BOOKING_STATUSES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </ActionForm>
+        </Card>
+
+        <Card title="Production workspace">
+          <p className={s.secondaryText} style={{ whiteSpace: "normal", marginBottom: 12 }}>Create a linked production project for tasks, workflow stages, and durable editing time. Booking, client, and payment data remain here.</p>
+          <ActionForm action={createProjectFromBooking} submit="Create production project" variant="ghost"><input type="hidden" name="booking_id" value={b.id} /></ActionForm>
         </Card>
 
         {b.balance_cents > 0 && b.status !== "canceled" && <Card title="Collect the balance">

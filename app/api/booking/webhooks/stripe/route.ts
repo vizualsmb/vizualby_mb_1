@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { boundedBody } from "@/lib/booking/security";
 import { bookingStore, RECEIPT_TTL, type StripeReceipt } from "@/lib/booking/store";
 import { reconcileBooking } from "@/lib/booking/reconcile";
-import { syncBookingToAdmin, syncLinkedStripePayment } from "@/lib/admin/sync";
+import { sendBookingConfirmationSms, syncBookingToAdmin, syncLinkedStripePayment } from "@/lib/admin/sync";
 
 export async function POST(request: Request) {
   const { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } = process.env;
@@ -35,7 +35,11 @@ export async function POST(request: Request) {
       if (merged) await syncLinkedStripePayment(adminBookingId, merged, receipt.metadata?.admin_payment_type === "partial" ? "partial" : "final");
     }
     const bookingUids = await store.smembers<string[]>(`booking:payment-bookings:${id}`);
-    for (const uid of bookingUids) { await reconcileBooking(uid); await syncBookingToAdmin(uid); }
+    for (const uid of bookingUids) {
+      const reconciled = await reconcileBooking(uid);
+      await syncBookingToAdmin(uid);
+      if (reconciled?.state === "confirmed") await sendBookingConfirmationSms(uid);
+    }
     return Response.json({ received: true });
   } catch (error) {
     // Log the cause (no card or customer data) so a stuck payment can be diagnosed.

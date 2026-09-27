@@ -1,0 +1,40 @@
+<div id="vizual-checkout-preview">
+  <style>
+    #vizual-checkout-preview{font-family:Arial,sans-serif;background:#080909;color:#f4f3ef;padding:28px;max-width:980px;margin:auto}
+    #vizual-checkout-preview .eyebrow{letter-spacing:.18em;font-size:12px;color:#b8a486;margin:0 0 18px}
+    #vizual-checkout-preview h1{font-size:clamp(42px,7vw,82px);line-height:.95;margin:0 0 28px;font-weight:700;letter-spacing:-.04em}
+    #vizual-checkout-preview .grid{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
+    #vizual-checkout-preview section{border:1px solid #4b4c47;background:#171916;padding:24px}
+    #vizual-checkout-preview h2{font-size:28px;margin:0 0 22px}
+    #vizual-checkout-preview label{display:block;color:#c6c5bf;font-size:13px;margin:15px 0 7px}
+    #vizual-checkout-preview input{width:100%;box-sizing:border-box;background:#0d0e0d;border:1px solid #555650;color:#fff;padding:14px;font-size:16px}
+    #vizual-checkout-preview .choice{border:1px solid #585953;padding:16px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;background:#1e201d}
+    #vizual-checkout-preview .choice strong{display:block;font-size:17px}.choice small{display:block;color:#b8b8b1;margin-top:5px}
+    #vizual-checkout-preview .choice.active{border-color:#d2b27e}.amount{font-size:20px;font-weight:700}
+    #vizual-checkout-preview .terms{border-top:1px solid #42433f;margin-top:22px;padding-top:18px;color:#c9c8c1;font-size:13px;line-height:1.5}
+    #vizual-checkout-preview .summary h3{font-size:30px;margin:0 0 24px}.summary-row{display:flex;justify-content:space-between;border-top:1px solid #3f403b;padding:16px 0;font-size:15px}.summary-row.total{font-size:20px;font-weight:700}.due{margin:12px -24px -24px;padding:22px 24px;background:#20211f;display:flex;justify-content:space-between;align-items:center}.due b{font-size:38px}.button{display:block;width:100%;border:0;background:#eee;color:#111;padding:17px;text-align:center;font-size:16px;font-weight:700;margin-top:22px}
+    @media(max-width:700px){#vizual-checkout-preview{padding:20px}.grid{grid-template-columns:1fr!important}.summary{order:-1}}
+  </style>
+  <p class="eyebrow">04 / SET THE SCENE · ONE-PAGE CHECKOUT</p>
+  <h1>YOUR NEXT <em>CHAPTER.</em></h1>
+  <div class="grid">
+    <section>
+      <h2>Reserve your shoot</h2>
+      <p style="color:#c8c7c0">Run &amp; Gun · Sat, Sep 26 · 2:00–4:00 PM · New York time</p>
+      <label>Your name</label><input value="Ailton Garcia Garcia Nascimento" readonly>
+      <label>Email</label><input value="alidi707@gmail.com" readonly>
+      <h3 style="margin:25px 0 10px">How would you like to pay?</h3>
+      <div class="choice active"><span><strong>Pay the deposit</strong><small>$200 today · $200 balance later</small></span><span class="amount">$200</span></div>
+      <div class="choice"><span><strong>Pay in full</strong><small>$400 today · Nothing left to pay</small></span><span class="amount">$400</span></div>
+      <div class="terms">Your deposit secures the selected date. The deposit is non-refundable according to the booking agreement. Cancellation and rescheduling terms apply.<br><br>☑ I agree to the booking and cancellation terms and privacy notice.</div>
+      <button class="button">Pay and reserve my date →</button>
+    </section>
+    <section class="summary">
+      <p class="eyebrow">YOUR BOOKING</p><h3>RUN &amp; GUN</h3>
+      <div class="summary-row"><span>Selected date</span><strong>Sep 26, 2:00 PM</strong></div>
+      <div class="summary-row"><span>Package price</span><strong>$400</strong></div>
+      <div class="summary-row total"><span>Total</span><strong>$400</strong></div>
+      <div class="due"><span>DEPOSIT DUE TODAY</span><b>$200</b></div>
+    </section>
+  </div>
+</div>

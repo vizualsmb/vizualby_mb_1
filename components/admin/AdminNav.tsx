@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ChartColumn, ClipboardList, CreditCard, Ellipsis, LayoutDashboard, Package, Receipt, Settings, Users, Wallet, X } from "lucide-react";
+import { CalendarDays, ChartColumn, ClipboardList, CreditCard, Ellipsis, FolderKanban, LayoutDashboard, Package, Receipt, Settings, Users, Wallet, X } from "lucide-react";
 import s from "./admin.module.css";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/bookings", label: "Bookings", icon: ClipboardList },
   { href: "/admin/clients", label: "Clients", icon: Users },
+  { href: "/admin/projects", label: "Projects", icon: FolderKanban },
   { href: "/admin/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/finances", label: "Finances", icon: Wallet },

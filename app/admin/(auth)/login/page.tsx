@@ -22,7 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className={s.authCard}>
       <Brand />
       <div><p className={s.eyebrow}>Private</p><h1 className={s.title}>Studio sign in</h1>
-        <p className={s.subtitle}>We’ll email you a one-time sign-in link and code. No password to remember.</p></div>
+        <p className={s.subtitle}>Sign in with your approved studio email and passcode.</p></div>
       {error && ERRORS[error] && <Notice tone="bad">{ERRORS[error]}</Notice>}
       {error === "unauthorized"
         ? <form action={signOut}><button className={s.button}>Sign out</button></form>
