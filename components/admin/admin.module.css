@@ -317,7 +317,8 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .productionStageProject > a { display: grid; gap: 3px; min-width: 0; color: inherit; text-decoration: none; }
 .productionStageProject.stageCut { border-color: rgba(85,214,160,.55); } .productionStageProject.stageEdit { border-color: rgba(244,189,72,.55); } .productionStageProject.stageColor { border-color: rgba(197,138,249,.55); } .productionStageProject.stageVfx { border-color: rgba(241,139,228,.55); } .productionStageProject.stageSound { border-color: rgba(101,200,244,.55); }
 .productionStageProject:hover { border-color: var(--gold); background: rgba(255,255,255,.05); }
-.productionStageProject strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.productionStageProject strong { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.productionStageProject strong svg { flex: 0 0 auto; color: currentColor; opacity: .72; }
 .productionStageProject small { color: var(--secondary); font-size: 10px; }
 .productionStageEmpty { padding: 8px; color: var(--muted); font-size: 11px; }
 .productionFocusPicker { display: flex; align-items: center; gap: 5px; }
