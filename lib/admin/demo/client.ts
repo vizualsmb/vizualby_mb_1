@@ -61,6 +61,7 @@ class Query implements PromiseLike<Result> {
   private returning = false;
   private counting = false;
   private embedBookings = false;
+  private embedEquipment = false;
   private singleMode: "single" | "maybe" | null = null;
   private upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {};
 
@@ -70,6 +71,7 @@ class Query implements PromiseLike<Result> {
     if (this.mode !== "select") this.returning = true;
     this.counting = opts?.count === "exact";
     this.embedBookings = cols.includes("bookings!inner");
+    this.embedEquipment = cols.includes("equipment(");
     return this;
   }
   insert(v: Row | Row[]) { this.mode = "insert"; this.payload = v; return this; }
@@ -79,6 +81,7 @@ class Query implements PromiseLike<Result> {
 
   private where(f: (r: Row) => boolean) { this.filters.push(f); return this; }
   eq(c: string, v: unknown) { return this.where((r) => same(r[c], v)); }
+  is(c: string, v: null) { return this.where((r) => v === null ? r[c] == null : same(r[c], v)); }
   neq(c: string, v: unknown) { return this.where((r) => r[c] != null && !same(r[c], v)); }
   gt(c: string, v: unknown) { return this.where((r) => r[c] != null && cmp(r[c], v) > 0); }
   gte(c: string, v: unknown) { return this.where((r) => r[c] != null && cmp(r[c], v) >= 0); }
@@ -135,6 +138,7 @@ class Query implements PromiseLike<Result> {
       const b = t.bookings.find((x) => x.id === p.booking_id) ?? {};
       return { ...p, bookings: { id: b.id, project_title: b.project_title, package_name: b.package_name, clients: { name: t.clients.find((c) => c.id === b.client_id)?.name } } };
     });
+    if (this.embedEquipment) rows = rows.map((p) => ({ ...p, equipment: t.equipment.find((e) => e.id === p.equipment_id) ?? null }));
     const data = this.mode !== "select" && !this.returning ? null : rows;
     if (this.singleMode) {
       if (this.singleMode === "single" && rows.length !== 1) return { data: null, error: { message: "Expected one row", code: "PGRST116" } };

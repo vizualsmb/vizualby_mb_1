@@ -4,7 +4,7 @@ import { bookingAddons, bookingPackages } from "@/data/booking";
 import { addDays, nyDay, nyInstant } from "../time";
 
 type Row = Record<string, unknown>;
-export type DemoTables = Record<"clients" | "bookings" | "booking_addons" | "payments" | "expenses" | "booking_events" | "business_settings" | "audit_logs" | "notifications" | "admins" | "projects" | "project_stages" | "project_tasks" | "project_time_sessions", Row[]>;
+export type DemoTables = Record<"clients" | "bookings" | "booking_addons" | "payments" | "expenses" | "booking_events" | "business_settings" | "audit_logs" | "notifications" | "admins" | "projects" | "project_stages" | "project_tasks" | "project_time_sessions" | "equipment" | "equipment_kits" | "equipment_kit_items" | "shoots" | "shoot_equipment" | "shoot_final_checks", Row[]>;
 
 const CLIENTS: [string, string | null, string, string][] = [
   ["Jay Rivers", null, "artist", "@jayrivers.music"], ["Kiara Santos", "Santos Studio", "brand", "@kiarasantos"],
@@ -59,7 +59,7 @@ export function buildDemoData(): DemoTables {
   const today = nyDay(new Date());
   const at = (offset: number, time = "15:00") => nyInstant(addDays(today, offset), time).toISOString();
   let eventId = 1;
-  const t: DemoTables = { clients: [], bookings: [], booking_addons: [], payments: [], expenses: [], booking_events: [], business_settings: [], audit_logs: [], notifications: [], admins: [], projects: [], project_stages: [], project_tasks: [], project_time_sessions: [] };
+  const t: DemoTables = { clients: [], bookings: [], booking_addons: [], payments: [], expenses: [], booking_events: [], business_settings: [], audit_logs: [], notifications: [], admins: [], projects: [], project_stages: [], project_tasks: [], project_time_sessions: [], equipment: [], equipment_kits: [], equipment_kit_items: [], shoots: [], shoot_equipment: [], shoot_final_checks: [] };
 
   CLIENTS.forEach(([name, company, type, social], i) => t.clients.push({
     id: id("c", i), name, email: `${name.toLowerCase().replace(/[^a-z]+/g, ".").replace(/^\.|\.$/g, "")}@example.com`,
@@ -119,5 +119,11 @@ export function buildDemoData(): DemoTables {
     { id: 2, booking_id: id("b", 6), kind: "admin_new_booking", channel: "email", recipient: "hello@vizualbymb.com", dedupe_key: "demo-2", status: "sent", error: null, created_at: at(-1, "18:05") },
     { id: 1, booking_id: id("b", 20), kind: "admin_payment", channel: "email", recipient: "hello@vizualbymb.com", dedupe_key: "demo-1", status: "sent", error: null, created_at: at(-3, "12:10") },
   );
+  const gear = [["Panasonic Lumix S1 II", "Cameras", true], ["Panasonic GH6", "Cameras", false], ["Sigma 24–70mm f/2.8", "Lenses", true], ["DJI RS3 Pro", "Stabilization", true], ["SmallRig RC 100C", "Lighting", false], ["Hollyland Lark M1", "Audio", false], ["Camera batteries", "Power", true], ["Memory cards", "Media", true], ["DJI Air 2S", "Drone / Action Cameras", false], ["ND filters", "Grip / Accessories", false]] as const;
+  gear.forEach(([name, category, required], i) => t.equipment.push({ id: id("e", i), name, category, quantity: 1, notes: null, required, active: true, archived_at: null, created_at: at(-20), updated_at: at(-1) }));
+  const shootId = "0000d001-0000-4000-8000-000000000000";
+  t.shoots.push({ id: shootId, project_id: null, client_id: id("c", 0), name: "Music Video — Sketxa", shoot_type: "Music video", shoot_at: at(0, "18:30"), location: "Boston, MA", shot_list_url: null, status: "packing", stage: "pack", final_checks: ["Camera batteries charged", "Memory cards inserted / formatted", "Phone", "Wallet", "Keys"], created_at: at(-2), updated_at: at(-1) });
+  gear.slice(0, 8).forEach((_, i) => t.shoot_equipment.push({ shoot_id: shootId, equipment_id: id("e", i), quantity: 1, packed: i < 4, loaded: i < 2, required: gear[i][2] }));
+  ["Camera batteries charged", "Memory cards inserted / formatted", "Phone", "Wallet", "Keys"].forEach((item, sort_order) => t.shoot_final_checks.push({ shoot_id: shootId, item, sort_order, checked: false }));
   return t;
 }
